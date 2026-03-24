@@ -4,13 +4,29 @@ Automated E2E testing skills for [Claude Code](https://claude.ai/code) using [ag
 
 Two skills that discover testable user journeys from your codebase and execute them with hybrid scripted + LLM assertions.
 
-## Why
+## The Problem
 
-- **Repeatable** — Same test paths every time, not improvised by the LLM
-- **Regression-aware** — Tests that failed before run first; removed after 3 consecutive passes
-- **Intelligent** — Scripted for mechanical steps, LLM for qualitative checks ("are the right entities displayed?")
-- **Adaptive** — Detects when UI changes break selectors, suggests updates
-- **Generic** — Works on any web project (Next.js, React, Vue, Angular, etc.)
+Manual E2E testing with agent-browser is slow, inconsistent, and forgets past failures. The LLM re-discovers the DOM at every run, misses critical test paths (e.g., uploading real documents instead of asking empty questions), and sometimes continues past visible errors in screenshots as if nothing happened.
+
+## The Solution
+
+| Skill | Command | Mission |
+|-------|---------|---------|
+| **e2e-discover** | `/e2e-discover` | Explore codebase, detect routes/pages/forms/features, generate YAML test manifests mirroring the UI navigation tree |
+| **e2e-run** | `/e2e-run [path] [--tag X] [--filter file] [--regressions]` | Execute manifests, hybrid assertions, mandatory screenshot validation, regression tracking, report generation |
+
+## Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **UI-mirrored test tree** | Tests follow the same structure as the app's navigation |
+| **Hybrid execution** | Mechanical steps (click, fill, upload) run directly; qualitative checks ("are the right entities extracted?") are evaluated by the LLM |
+| **Mandatory screenshot validation** | Every screenshot is read and visually inspected. Any visible error = immediate FAIL. Never skipped. |
+| **Regression tracking** | Failed tests are replayed first, removed after 3 consecutive passes |
+| **Scope filtering** | `--filter scope.txt` to target specific pages or categories |
+| **Crash recovery** | Restarts browser on Playwright crash, aborts after 3 consecutive errors |
+| **Test isolation** | Each test starts from base URL, no state carries over |
+| **Generic** | Works on any web project (Next.js, React, Vue, Angular, etc.) |
 
 ## Installation
 
@@ -27,11 +43,9 @@ agent-browser --version
 
 ### Install Skills
 
-Copy the skills into your Claude Code skills directory:
-
 ```bash
 # Option 1: Clone and symlink
-git clone https://github.com/anthropics/e2e-agent-browser.git
+git clone https://github.com/bacoco/e2e-agent-browser.git
 ln -s $(pwd)/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/e2e-discover
 ln -s $(pwd)/e2e-agent-browser/skills/e2e-run ~/.claude/skills/e2e-run
 
@@ -43,20 +57,23 @@ cp -r e2e-agent-browser/skills/e2e-run ~/.claude/skills/
 ## Quick Start
 
 ```bash
-# 1. In your project, discover routes and generate test manifests
+# 1. Discover routes and generate test manifests
 /e2e-discover
 
-# 2. Customize the generated manifests (optional but recommended)
-#    Edit e2e-tests/ YAML files to add real test data and assertions
+# 2. Customize the generated manifests (add real test data, assertions)
+#    Edit e2e-tests/ YAML files
 
 # 3. Run all tests
 /e2e-run
 
-# 4. Run only regressions (fast feedback)
+# 4. Run only regressions (fast feedback after a fix)
 /e2e-run --regressions
 
 # 5. Run a specific test
 /e2e-run notaire-chat/upload-pdf
+
+# 6. Run tests matching a scope file
+/e2e-run --filter scope.txt
 ```
 
 ## How It Works
@@ -64,18 +81,19 @@ cp -r e2e-agent-browser/skills/e2e-run ~/.claude/skills/
 ### `/e2e-discover`
 
 Explores your codebase to find:
-- Frontend framework and route definitions
-- Navigation structure (sidebar, menus, dashboard)
-- Feature flags (enabled/disabled features)
-- Interactive components (forms, uploads, chat, modals)
-- Test data (fixtures, sample files)
-- Dev credentials
+- **Framework** — Next.js, React, Vue, Angular (auto-detected)
+- **Routes** — app directory, router config, route registry
+- **Navigation** — sidebar, menus, dashboard cards
+- **Feature flags** — what's enabled/disabled
+- **Interactive components** — forms, uploads, chat, modals
+- **Test data** — fixtures, sample files, PDFs
+- **Credentials** — from CLAUDE.md, .env.example, README
 
 Generates a `e2e-tests/` directory mirroring your UI navigation:
 
 ```
 e2e-tests/
-  _config.yaml              # base URL, credentials
+  _config.yaml              # base URL, credentials, paths
   _regressions.yaml         # auto-maintained failure tracking
   _shared/
     login.yaml              # reusable login sequence
@@ -84,34 +102,78 @@ e2e-tests/
   dashboard/
     home.yaml
     file-hub.yaml
-  chat/
-    send-message.yaml
-    upload-document.yaml
+  notaire-chat/
+    upload-pdf.yaml
+    chat-with-doc.yaml
+    entity-graph.yaml
+  harmonia/
+    modules.yaml
 ```
 
 **Rules:**
 - Never overwrites existing manifests
 - Never deletes manifests (marks `deprecated: true`)
 - Pre-fills test data when fixtures are found
+- Asks the user if auto-detection fails
 
 ### `/e2e-run`
 
-Executes the YAML manifests with hybrid intelligence:
+Executes YAML manifests with hybrid intelligence:
 
 | Step Type | Execution | Example |
 |-----------|-----------|---------|
 | `open`, `click`, `fill`, `press` | Mechanical (agent-browser) | Navigate, interact |
 | `upload`, `select` | Mechanical | File upload, dropdowns |
 | `assert_url`, `assert_text` | Mechanical | Simple checks |
-| `llm-wait` | Hybrid (LLM polls) | Wait for async pipeline |
-| `llm-check` | LLM evaluation | "Are the right entities displayed?" |
+| `screenshot` | Mechanical + **mandatory LLM validation** | Capture and verify |
+| `llm-wait` | Hybrid (LLM polls every 3s) | Wait for async pipeline |
+| `llm-check` | LLM evaluation + screenshot | "Are the right entities displayed?" |
 
 **Selector resolution:** Uses visible text, placeholder, and aria-labels — never DOM refs (which break on re-render).
 
-**Regression tracking:**
-- Failed tests are added to `_regressions.yaml`
-- Regression tests run first on every `/e2e-run`
-- Removed after 3 consecutive passes
+### Scope Filter (`--filter`)
+
+A plain text file where each line describes what to test:
+
+```
+# scope.txt
+notaire-chat upload
+dashboard file-hub
+login
+```
+
+The LLM matches each line's keywords against manifest name, description, path, and tags. Only matching tests run.
+
+### Screenshot Validation (Mandatory)
+
+**Every screenshot taken during a run is read by the LLM and visually inspected.** This is non-negotiable.
+
+- Error messages, blank screens, broken layouts → **immediate FAIL**
+- The LLM must describe what it sees and confirm it matches expectations
+- Never skip, never treat errors as "partial pass"
+
+### Regression Tracking
+
+- Failed tests are automatically added to `_regressions.yaml`
+- Regression tests always run **first** (newest failures first)
+- After **3 consecutive passes**, a regression is removed (resolved)
+- The file is auto-maintained — never edit manually
+
+### Crash Recovery
+
+If agent-browser crashes (Playwright timeout, process dies):
+1. Close and reopen browser
+2. Re-login if needed
+3. Retry the failed step once
+4. If retry fails → mark test `ERROR`, move to next
+5. If 3 consecutive errors → abort entire run ("browser unstable")
+
+### Test Isolation
+
+Each test starts clean:
+- Navigate to `{base_url}` before each manifest
+- No state carries from previous tests
+- Tests must be self-contained
 
 ## Manifest Format
 
@@ -163,8 +225,8 @@ steps:
     duration: 15s
 
   - action: llm-check
-    description: "Response is relevant to the uploaded document"
-    criteria: "Answer cites specific information from the PDF, not generic"
+    description: "Response is grounded in the uploaded document"
+    criteria: "Answer cites specific information from the PDF (names, amounts, dates), not generic"
     severity: critical
     screenshot: chat-response.png
 ```
@@ -182,8 +244,8 @@ steps:
 | `wait` | `duration` | Sleep (e.g., "5s", "15s") |
 | `assert_url` | `expected` | Check current URL |
 | `assert_text` | `expected` | Check text exists on page |
-| `screenshot` | `filename` | Capture screenshot |
-| `include` | `file` | Inline steps from another manifest |
+| `screenshot` | `filename` | Capture + mandatory LLM validation |
+| `include` | `file` | Inline steps from another manifest (max depth 3) |
 | `llm-wait` | `description`, `timeout`, `checkpoints`, `screenshot?` | Poll until conditions met |
 | `llm-check` | `description`, `criteria`, `severity`, `screenshot?` | LLM evaluates page state |
 
@@ -193,21 +255,65 @@ steps:
 - `{credentials.username}`, `{credentials.password}` — from `_config.yaml`
 - `{data.xxx}` — from manifest `data:` section
 
+### Test Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **PASS** | All steps completed, all assertions passed, all screenshots clean |
+| **FAIL** | A `severity: critical` assertion failed or screenshot showed an error |
+| **STALE** | Element selector not found (UI changed — run `/e2e-discover`) |
+| **ERROR** | agent-browser crashed, unrecoverable |
+| **SKIP** | Manifest is `deprecated: true` or filtered out |
+
 ## Report
 
 After each run, a report is generated at `e2e-tests/_results/report.md`:
 
+```markdown
+# E2E Report — 2026-03-24 10:30
+
+## Summary
+- Tests: 12 run, 10 pass, 1 fail, 1 stale
+- Duration: 4m 32s
+- Regressions fixed: 1
+- New failures: 1
+
+## Failures
+### harmonia/modules.yaml — FAIL
+- Step 8: llm-check "Verify 11 modules in sidebar"
+- Expected: 11 modules visible
+- Actual: 10 modules (Veille juridique missing)
+- Screenshot: _results/screenshots/harmonia-modules-fail.png
+
+## Stale Tests
+### dashboard/erp.yaml — STALE
+- Step 3: click "Generate" — element not found
+- Action: Run /e2e-discover to update selectors
+
+## Regressions Status
+| Test | First failed | Consecutive passes | Status |
+|------|-------------|-------------------|--------|
+| harmonia/modules | 2026-03-24 | 0 | Active |
 ```
-E2E Report — 2026-03-24 10:30
 
-Tests: 12 run, 10 pass, 1 fail, 1 stale
-Duration: 4m 32s
+## Project Structure
 
-Failures:
-  harmonia/modules.yaml — 10 modules instead of 11
-
-Stale (UI changed):
-  dashboard/erp.yaml — "Generate" button not found
+```
+e2e-agent-browser/
+  skills/
+    e2e-discover/SKILL.md      # codebase exploration + manifest generation
+    e2e-run/SKILL.md            # test execution + regressions + screenshot validation
+  examples/
+    _config.yaml               # sample config
+    _regressions.yaml           # empty regression file
+    _shared/login.yaml          # sample login brick
+    auth/login.yaml             # sample login test
+    documents/upload-and-process.yaml  # sample upload + pipeline test
+    chat/ask-about-document.yaml       # sample chat test
+  docs/
+    design-spec.md              # full design specification
+  README.md
+  LICENSE                       # MIT
 ```
 
 ## License
