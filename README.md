@@ -1,311 +1,213 @@
 # e2e-agent-browser
 
-**Stop writing E2E tests. Just tell the AI what to check.**
+**agent-browser runs commands. This plugin builds and maintains your entire test suite.**
 
-A Claude Code plugin that turns natural language into automated browser tests. Describe what you changed or what to verify — the plugin finds the right tests, creates missing ones, runs them, and tracks regressions. All through [agent-browser](https://github.com/nicobailey/agent-browser) (Playwright).
+## agent-browser alone vs. with this plugin
 
-```bash
-/e2e-run I just changed the upload flow, make sure it still works
-```
+| | agent-browser seul | agent-browser + e2e-agent-browser |
+|---|---|---|
+| **Decouverte des routes** | Vous naviguez manuellement | Le plugin scanne votre code et decouvre toutes les routes, formulaires et features automatiquement |
+| **Creation des tests** | Vous ecrivez chaque commande a la main | Les tests sont generes automatiquement a partir du code, ou a partir d'une phrase en langage naturel |
+| **Memoire** | Aucune — chaque session repart de zero | Tous les tests sont sauvegardes en YAML, accumules, et rejoues a chaque run |
+| **Regressions** | Vous oubliez ce qui a casse avant | Les tests qui ont echoue sont rejoues en priorite, retires apres 3 passes consecutives |
+| **Maintenance** | Un bouton renomme = test casse a la main | Le plugin detecte les changements d'UI et met a jour les selecteurs automatiquement |
+| **Screenshots** | Vous les regardez (ou pas) | Chaque screenshot est lu et analyse — toute erreur visible = FAIL immediat |
+| **Couverture** | Vous testez ce que vous pensez a tester | Le plugin maintient un catalogue exhaustif qui grandit avec votre app |
 
----
-
-## The Problem
-
-You just pushed a change. Now you need to verify it works. Today that means:
-
-- Manually clicking through the app
-- Forgetting to test edge cases you broke 2 weeks ago
-- Writing Playwright scripts that break every time a button moves
-- Or asking the AI to "test the app" and watching it take random screenshots without catching obvious errors
-
-**None of this scales. None of this remembers. None of this is reliable.**
+**En resume : agent-browser est un outil. Ce plugin en fait un systeme de backtesting complet.**
 
 ---
 
-## The Solution
+## Ce que ca change concretement
 
-Tell the plugin what you did. It handles the rest.
-
-### "I changed the login page"
+### 1. Un catalogue de tests qui se construit tout seul
 
 ```bash
-/e2e-run I modified the login page
+/e2e-discover
 ```
 
-The plugin:
-1. Checks `git diff` to see what files changed
-2. Finds existing login tests → runs them
-3. Detects the submit button was renamed → updates the test automatically
-4. Takes a screenshot → reads it → confirms no errors visible
-5. Reports: **PASS**
+Le plugin lit votre code (routes, navigation, composants, feature flags) et genere un test par page/fonctionnalite. Votre app a 30 pages ? Vous avez 30 tests. Une nouvelle page est ajoutee ? Le prochain discover la detecte et cree le test.
 
-### "Does the file upload still work?"
-
-```bash
-/e2e-run does the file upload still work?
+```
+e2e-tests/
+  auth/login.yaml
+  dashboard/home.yaml
+  dashboard/file-hub.yaml
+  chat/upload-pdf.yaml
+  chat/ask-question.yaml
+  chat/entity-graph.yaml
+  settings/profile.yaml
+  ...
 ```
 
-The plugin:
-1. Finds the upload test manifest
-2. Opens the app, logs in, navigates to upload
-3. Uploads a real PDF from your test fixtures
-4. Waits for the processing pipeline to complete (polling every 3s)
-5. Verifies entities were extracted, indexing finished
-6. Asks a question about the document → checks the answer is grounded in the PDF
-7. Reports: **PASS** — or **FAIL** with the exact screenshot showing what went wrong
+Vous n'ecrivez rien. Le catalogue existe.
 
-### "I added a new sidebar widget"
-
-```bash
-/e2e-run I added a legal watch widget to the chat sidebar
-```
-
-The plugin:
-1. Searches existing tests → nothing covers this widget
-2. Reads the component code to understand what it does
-3. **Generates a new test** with real steps: click the toggle, verify 3 tabs appear, verify data loads
-4. Saves it to `e2e-tests/chat/legal-watch.yaml`
-5. Executes it immediately
-6. Reports: **PASS** — new test added to the suite
-
-### "Run everything, I'm about to deploy"
+### 2. Du backtesting a chaque changement
 
 ```bash
 /e2e-run
 ```
 
-The plugin:
-1. Runs **regressions first** (tests that failed recently)
-2. Then all tests by priority
-3. Every screenshot is read and validated — errors are never ignored
-4. Generates a full report with pass/fail, screenshots, timing
+Tous les tests sont rejoues. Ceux qui ont casse recemment passent en premier. Le rapport vous dit exactement ce qui marche et ce qui ne marche pas. A chaque deploy, a chaque merge, a chaque hotfix.
 
-### "Just check the regressions"
+### 3. Des tests qui se reparent tout seuls
+
+Vous renommez un bouton "Envoyer" en "Soumettre". Avec agent-browser seul, votre test casse et vous devez le reecrire. Avec ce plugin :
+
+1. Le test detecte que "Envoyer" n'existe plus → status `STALE`
+2. Le plugin fait un snapshot, trouve "Soumettre" a la place
+3. Met a jour le manifest automatiquement
+4. Re-execute → **PASS**
+
+### 4. Du langage naturel au lieu de commandes
+
+Vous ne dites plus "click e4, fill e16, press Enter". Vous dites :
+
+```bash
+/e2e-run j'ai modifie le formulaire d'upload, verifie que ca marche
+```
+
+Le plugin comprend l'intent, trouve les tests concernes (via git diff + matching semantique), les execute, et genere les tests manquants si besoin.
+
+### 5. Zero tolerance sur les erreurs visuelles
+
+Avec agent-browser seul, le LLM prend un screenshot et continue sans le regarder — meme si l'ecran affiche une erreur. Avec ce plugin, **chaque screenshot est lu et inspecte**. Un modal d'erreur visible ? FAIL. Un ecran blanc ? FAIL. Un spinner qui tourne encore ? FAIL. Pas de "partial pass", pas de "on verra plus tard".
+
+---
+
+## Exemples
+
+### Apres un refactoring
+
+```bash
+/e2e-run j'ai refactore le sidebar de Harmonia
+```
+
+→ git diff → fichiers modifies dans `sidebar/` → trouve 3 tests concernes → les execute → les 11 modules sont toujours la → **PASS**
+
+### Apres avoir ajoute une feature
+
+```bash
+/e2e-run j'ai ajoute un widget de veille juridique dans le chat
+```
+
+→ Aucun test existant pour ce widget → lit le composant → **genere un nouveau test** (ouvrir le panel, verifier les 3 onglets, verifier le rafraichissement) → l'execute → le sauvegarde dans le catalogue → **PASS**
+
+### Avant un deploy
+
+```bash
+/e2e-run
+```
+
+→ 25 tests executes → regressions d'abord → screenshots valides un par un → rapport :
+
+```
+E2E complete: 24/25 passed, 1 failed
+Failure: chat/entity-graph.yaml — 0 entites extraites au lieu de 5
+Screenshot: _results/screenshots/entity-graph-fail.png
+```
+
+### Verification rapide des regressions
 
 ```bash
 /e2e-run --regressions
 ```
 
-Quick feedback loop: only re-runs tests that previously failed. After 3 consecutive passes, they're automatically removed from the regression list.
+→ Seulement les 3 tests qui ont casse la derniere fois → 2 passent maintenant → 1 encore en echec → rapport en 30 secondes
+
+### Upload et pipeline complet
+
+```bash
+/e2e-run teste l'upload d'un acte de vente et verifie que le pipeline extrait les bonnes entites
+```
+
+→ Upload un vrai PDF notarial → attend que l'OCR, l'extraction d'entites, l'indexation RAPTOR terminent → verifie que vendeur, acquereur, notaire, prix sont extraits → pose une question sur le document → verifie que la reponse cite des infos du PDF → **PASS**
 
 ---
 
-## How It Works
+## Comment ca marche
 
-### Two skills, one workflow
+### Deux skills
 
-| Skill | When to use | What it does |
-|-------|------------|--------------|
-| `/e2e-discover` | Once at setup, then after major UI changes | Explores your codebase, finds every route/page/form, generates a test tree mirroring your navigation |
-| `/e2e-run` | Every time you change code | Understands what you describe, finds/creates/updates tests, executes them, tracks regressions |
+| Skill | Quand | Quoi |
+|-------|-------|------|
+| `/e2e-discover` | Au setup + apres changements structurels | Scanne le code, genere le catalogue de tests |
+| `/e2e-run` | A chaque changement | Execute, repare, genere, rapporte |
 
-### Hybrid execution
+### Execution hybride
 
-Not everything needs AI judgment. Clicking a button is mechanical. Checking if the right entities were extracted from a legal document requires intelligence.
+| Action | Execution | Exemple |
+|--------|-----------|---------|
+| Login, navigation, clics, formulaires | **Directe** (agent-browser) | Rapide, deterministe |
+| Attendre un pipeline async | **Hybride** (LLM poll toutes les 3s) | Interprete les indicateurs de progression |
+| "La reponse est-elle pertinente ?" | **LLM** | Comprend le contenu |
+| Chaque screenshot | **LLM lit l'image** | Detecte les erreurs visuelles |
 
-| Step | Execution | Why |
-|------|-----------|-----|
-| Login, navigate, click, fill forms | **Direct** (agent-browser CLI) | Fast, deterministic |
-| Wait for async pipeline to finish | **Hybrid** (LLM polls every 3s) | Needs to interpret progress indicators |
-| "Is this response relevant to the uploaded PDF?" | **LLM evaluation** | Requires understanding content |
-| Every screenshot | **LLM reads the image** | Catches errors humans would see but scripts miss |
+### Format des tests
 
-### Dynamic test management
-
-Tests are living artifacts. They evolve with your code.
-
-| What happens | What the plugin does |
-|-------------|---------------------|
-| You describe a feature with no test | **Creates** a new manifest with real steps |
-| A test breaks because a button was renamed | **Updates** the selectors and re-runs |
-| A feature is removed | **Marks the test deprecated**, skips it |
-| A regression passes 3 times in a row | **Removes it** from the regression list |
-
-### Mandatory screenshot validation
-
-Every screenshot taken during a test is **read by the AI and visually inspected**. This is not optional.
-
-- Error messages → **FAIL**
-- Blank screens → **FAIL**
-- Loading spinners that should have resolved → **FAIL**
-- "Partial pass" → **does not exist**
-
-If it looks wrong in the screenshot, the test fails. Period.
-
----
-
-## Real-World Examples
-
-### E-commerce app
-
-```bash
-/e2e-run verify the checkout flow after I changed the payment form
-```
-
-→ Logs in, adds item to cart, fills payment form, submits, verifies order confirmation page, checks no console errors.
-
-### SaaS dashboard
-
-```bash
-/e2e-run I refactored the analytics charts, make sure they render
-```
-
-→ Navigates to analytics page, waits for charts to load, verifies data is displayed (not empty state), screenshots each chart type.
-
-### Document processing platform
-
-```bash
-/e2e-run upload a PDF and verify the pipeline extracts the right entities
-```
-
-→ Uploads a real document, waits for OCR → entity extraction → indexing, verifies entities match the document type, asks a question, checks the answer cites the document.
-
-### Mobile-responsive app
-
-```bash
-/e2e-run check if the navigation works on mobile viewport
-```
-
-→ Sets viewport to 375x812, opens the app, verifies hamburger menu appears, opens it, clicks through main sections, screenshots each.
-
----
-
-## Test Manifest Format
-
-Tests are YAML files — human-readable, editable, auto-generated:
+YAML lisible, editable, auto-genere :
 
 ```yaml
-name: "Upload PDF and verify pipeline"
+name: "Upload PDF et pipeline"
 priority: high
 requires_auth: true
 timeout: 120s
-tags: [pipeline, upload]
 
 data:
   pdf_file: "data-sample/contract.pdf"
-  expected_entities: [seller, buyer, notary, price]
+  expected_entities: [vendeur, acquereur, notaire, prix]
 
 steps:
   - action: open
-    url: "{base_url}/documents"
+    url: "{base_url}/chat"
 
   - action: click
-    target: "Upload"
+    target: "Nouvelle conversation"
 
   - action: upload
     target: "file-input"
     file: "{data.pdf_file}"
 
   - action: llm-wait
-    description: "Pipeline completes"
     timeout: 90s
     checkpoints:
-      - "OCR finished"
-      - "Entities detected"
-      - "Indexing complete"
+      - "OCR termine"
+      - "Entites detectees"
+      - "Indexation terminee"
 
   - action: llm-check
-    description: "Correct entities extracted"
-    criteria: "Entities include: {data.expected_entities}"
+    criteria: "Entites incluent : {data.expected_entities}"
     severity: critical
     screenshot: entities.png
-
-  - action: fill
-    target: "Ask a question"
-    value: "What is the sale price?"
-
-  - action: press
-    key: Enter
-
-  - action: wait
-    duration: 15s
-
-  - action: llm-check
-    description: "Answer is grounded in the document"
-    criteria: "Cites specific info from the PDF, not generic"
-    severity: critical
-    screenshot: answer.png
 ```
 
-### Available Actions
-
-| Action | What it does |
-|--------|-------------|
-| `open` | Navigate to a URL |
-| `click` | Click an element by its visible text |
-| `fill` | Type into an input by its placeholder or label |
-| `press` | Press a keyboard key |
-| `upload` | Upload a file |
-| `select` | Pick a dropdown option |
-| `wait` | Wait a fixed duration |
-| `assert_url` | Verify the current URL |
-| `assert_text` | Verify text exists on the page |
-| `screenshot` | Capture + mandatory visual validation |
-| `include` | Reuse steps from another manifest |
-| `llm-wait` | Wait for async conditions (LLM polls and checks) |
-| `llm-check` | AI evaluates the page against your criteria |
-
-Selectors use **visible text**, not CSS selectors or DOM refs. "Click the Submit button" works even if the button's class name changes.
+Les selecteurs utilisent le **texte visible** ("Nouvelle conversation"), pas des selecteurs CSS ou des refs DOM qui cassent a chaque render.
 
 ---
 
 ## Installation
 
-### 1. Install agent-browser
+### 1. Prerequis
 
 ```bash
 npm install -g agent-browser
 agent-browser install --with-deps
 ```
 
-### 2. Install the plugin
+### 2. Installer le plugin
 
 ```bash
 /plugin marketplace add bacoco/e2e-agent-browser
 /plugin install e2e-agent-browser@e2e-agent-browser
 ```
 
-Done. `/e2e-discover` and `/e2e-run` are ready.
-
-### Alternative: manual install
-
-```bash
-git clone https://github.com/bacoco/e2e-agent-browser.git
-cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
-cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-run ~/.claude/skills/
-```
+`/e2e-discover` et `/e2e-run` sont prets.
 
 ---
 
-## Works With Any Web Framework
+## Frameworks supportes
 
-| Framework | Route detection | Tested |
-|-----------|----------------|--------|
-| Next.js (App Router) | `app/` directory | Yes |
-| Next.js (Pages) | `pages/` directory | Yes |
-| React + React Router | Router config | Yes |
-| Vue + Vue Router | `router/index.ts` | Yes |
-| Angular | Routing modules | Yes |
-| Any other | Grep-based heuristics | Yes |
-
----
-
-## Report
-
-After each run:
-
-```
-E2E run complete: 11/12 passed, 1 failed
-Report: e2e-tests/_results/report.md
-
-Failures:
-- harmonia/modules.yaml: 10 modules instead of 11 (Reunion missing)
-  Screenshot: _results/screenshots/harmonia-modules-fail.png
-
-New tests generated:
-- chat/legal-watch.yaml
-```
+Next.js, React, Vue, Angular, et tout framework web avec des routes detectables. Le discover utilise des heuristiques adaptatives — s'il ne trouve pas les routes automatiquement, il demande.
 
 ---
 
