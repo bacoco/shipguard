@@ -1,168 +1,145 @@
 # e2e-agent-browser
 
-**agent-browser runs commands. This plugin builds and maintains your entire test suite.**
+**Turn agent-browser into a persistent, self-maintaining test suite.**
 
-## agent-browser alone vs. with this plugin
+[agent-browser](https://github.com/nicobailey/agent-browser) gives you a powerful CLI to control a browser: `click`, `fill`, `snapshot`, `screenshot`, `upload`. You can test anything, interactively, one command at a time.
 
-| | agent-browser seul | agent-browser + e2e-agent-browser |
-|---|---|---|
-| **Decouverte des routes** | Vous naviguez manuellement | Le plugin scanne votre code et decouvre toutes les routes, formulaires et features automatiquement |
-| **Creation des tests** | Vous ecrivez chaque commande a la main | Les tests sont generes automatiquement a partir du code, ou a partir d'une phrase en langage naturel |
-| **Memoire** | Aucune — chaque session repart de zero | Tous les tests sont sauvegardes en YAML, accumules, et rejoues a chaque run |
-| **Regressions** | Vous oubliez ce qui a casse avant | Les tests qui ont echoue sont rejoues en priorite, retires apres 3 passes consecutives |
-| **Maintenance** | Un bouton renomme = test casse a la main | Le plugin detecte les changements d'UI et met a jour les selecteurs automatiquement |
-| **Screenshots** | Vous les regardez (ou pas) | Chaque screenshot est lu et analyse — toute erreur visible = FAIL immediat |
-| **Couverture** | Vous testez ce que vous pensez a tester | Le plugin maintient un catalogue exhaustif qui grandit avec votre app |
-
-**En resume : agent-browser est un outil. Ce plugin en fait un systeme de backtesting complet.**
+This plugin adds **what agent-browser doesn't do**: remembering tests, running them again, tracking what broke, fixing what changed, and building coverage over time.
 
 ---
 
-## Ce que ca change concretement
+## What agent-browser does
 
-### 1. Un catalogue de tests qui se construit tout seul
+```bash
+agent-browser open http://localhost:3000
+agent-browser snapshot                      # get the accessibility tree
+agent-browser click e4                      # click a button by ref
+agent-browser fill e16 "my query"           # fill an input
+agent-browser screenshot /tmp/result.png    # capture the screen
+```
+
+Great for one-off exploration and debugging. But next week, you won't remember what you tested or what refs to use.
+
+## What this plugin adds
+
+```bash
+/e2e-run I just changed the upload flow, check if it still works
+```
+
+The plugin:
+- **Remembers every test** in YAML manifests that persist across sessions
+- **Discovers your app's routes** by reading your source code — no manual setup
+- **Runs all tests or just the relevant ones** based on what you describe in plain English
+- **Tracks regressions** — tests that failed before run first, auto-removed after 3 passes
+- **Reads every screenshot** and fails on visible errors — no silent pass on a broken page
+- **Self-repairs** when the UI changes — detects renamed buttons, updates selectors
+- **Generates missing tests** when you describe something that has no test yet
+
+---
+
+## In practice
+
+### You set up your app once
 
 ```bash
 /e2e-discover
 ```
 
-Le plugin lit votre code (routes, navigation, composants, feature flags) et genere un test par page/fonctionnalite. Votre app a 30 pages ? Vous avez 30 tests. Une nouvelle page est ajoutee ? Le prochain discover la detecte et cree le test.
+The plugin reads your codebase (routes, navigation, components, feature flags, test fixtures, dev credentials) and generates a test for every page and interactive feature:
 
 ```
 e2e-tests/
+  _config.yaml                # base URL, credentials
+  _regressions.yaml           # auto-maintained
+  _shared/login.yaml          # reusable auth sequence
   auth/login.yaml
   dashboard/home.yaml
   dashboard/file-hub.yaml
   chat/upload-pdf.yaml
   chat/ask-question.yaml
-  chat/entity-graph.yaml
   settings/profile.yaml
-  ...
 ```
 
-Vous n'ecrivez rien. Le catalogue existe.
-
-### 2. Du backtesting a chaque changement
+### Then you just talk to it
 
 ```bash
 /e2e-run
 ```
-
-Tous les tests sont rejoues. Ceux qui ont casse recemment passent en premier. Le rapport vous dit exactement ce qui marche et ce qui ne marche pas. A chaque deploy, a chaque merge, a chaque hotfix.
-
-### 3. Des tests qui se reparent tout seuls
-
-Vous renommez un bouton "Envoyer" en "Soumettre". Avec agent-browser seul, votre test casse et vous devez le reecrire. Avec ce plugin :
-
-1. Le test detecte que "Envoyer" n'existe plus → status `STALE`
-2. Le plugin fait un snapshot, trouve "Soumettre" a la place
-3. Met a jour le manifest automatiquement
-4. Re-execute → **PASS**
-
-### 4. Du langage naturel au lieu de commandes
-
-Vous ne dites plus "click e4, fill e16, press Enter". Vous dites :
-
-```bash
-/e2e-run j'ai modifie le formulaire d'upload, verifie que ca marche
-```
-
-Le plugin comprend l'intent, trouve les tests concernes (via git diff + matching semantique), les execute, et genere les tests manquants si besoin.
-
-### 5. Zero tolerance sur les erreurs visuelles
-
-Avec agent-browser seul, le LLM prend un screenshot et continue sans le regarder — meme si l'ecran affiche une erreur. Avec ce plugin, **chaque screenshot est lu et inspecte**. Un modal d'erreur visible ? FAIL. Un ecran blanc ? FAIL. Un spinner qui tourne encore ? FAIL. Pas de "partial pass", pas de "on verra plus tard".
-
----
-
-## Exemples
-
-### Apres un refactoring
-
-```bash
-/e2e-run j'ai refactore le sidebar de Harmonia
-```
-
-→ git diff → fichiers modifies dans `sidebar/` → trouve 3 tests concernes → les execute → les 11 modules sont toujours la → **PASS**
-
-### Apres avoir ajoute une feature
-
-```bash
-/e2e-run j'ai ajoute un widget de veille juridique dans le chat
-```
-
-→ Aucun test existant pour ce widget → lit le composant → **genere un nouveau test** (ouvrir le panel, verifier les 3 onglets, verifier le rafraichissement) → l'execute → le sauvegarde dans le catalogue → **PASS**
-
-### Avant un deploy
-
-```bash
-/e2e-run
-```
-
-→ 25 tests executes → regressions d'abord → screenshots valides un par un → rapport :
-
-```
-E2E complete: 24/25 passed, 1 failed
-Failure: chat/entity-graph.yaml — 0 entites extraites au lieu de 5
-Screenshot: _results/screenshots/entity-graph-fail.png
-```
-
-### Verification rapide des regressions
+Runs everything. Regressions first.
 
 ```bash
 /e2e-run --regressions
 ```
-
-→ Seulement les 3 tests qui ont casse la derniere fois → 2 passent maintenant → 1 encore en echec → rapport en 30 secondes
-
-### Upload et pipeline complet
+Only the tests that failed last time. Fast feedback.
 
 ```bash
-/e2e-run teste l'upload d'un acte de vente et verifie que le pipeline extrait les bonnes entites
+/e2e-run I refactored the sidebar, make sure the 11 modules still show up
 ```
+Finds the sidebar tests, runs them, reports pass/fail with screenshots.
 
-→ Upload un vrai PDF notarial → attend que l'OCR, l'extraction d'entites, l'indexation RAPTOR terminent → verifie que vendeur, acquereur, notaire, prix sont extraits → pose une question sur le document → verifie que la reponse cite des infos du PDF → **PASS**
+```bash
+/e2e-run I added a legal watch widget in the chat panel
+```
+No test exists → reads the component → generates one → saves it → runs it.
+
+```bash
+/e2e-run I changed ArticleModal.tsx and notaire-chat-view.tsx
+```
+Checks `git diff`, maps changed files to impacted tests, runs them all.
 
 ---
 
-## Comment ca marche
+## The 5 things agent-browser can't do alone
 
-### Deux skills
+### 1. Persistent test catalog
 
-| Skill | Quand | Quoi |
-|-------|-------|------|
-| `/e2e-discover` | Au setup + apres changements structurels | Scanne le code, genere le catalogue de tests |
-| `/e2e-run` | A chaque changement | Execute, repare, genere, rapporte |
+agent-browser commands are ephemeral. This plugin stores every test as a YAML manifest. Your test suite grows over time. Next month you have 50 tests covering your whole app — and you wrote none of them by hand.
 
-### Execution hybride
+### 2. Regression tracking
 
-| Action | Execution | Exemple |
-|--------|-----------|---------|
-| Login, navigation, clics, formulaires | **Directe** (agent-browser) | Rapide, deterministe |
-| Attendre un pipeline async | **Hybride** (LLM poll toutes les 3s) | Interprete les indicateurs de progression |
-| "La reponse est-elle pertinente ?" | **LLM** | Comprend le contenu |
-| Chaque screenshot | **LLM lit l'image** | Detecte les erreurs visuelles |
+When a test fails, it goes into `_regressions.yaml`. Next run, it executes first. After 3 consecutive passes, it's automatically removed. You always know what's broken and what's been fixed.
 
-### Format des tests
+### 3. Self-repairing selectors
 
-YAML lisible, editable, auto-genere :
+agent-browser uses refs (`e4`, `e16`) that change every time the DOM re-renders. This plugin uses **visible text** ("Submit", "Upload", "New conversation"). When a button is renamed, the plugin detects `STALE`, snapshots the page, finds the new label, updates the manifest, and re-runs.
+
+### 4. Screenshot validation
+
+With agent-browser alone, you take a screenshot and move on. Maybe you look at it, maybe you don't. This plugin **reads every screenshot with the AI** and fails immediately on any visible error — toasts, modals, blank screens, broken layouts. No silent passes.
+
+### 5. Natural language interface
+
+Instead of remembering which tests to run and what refs to use:
+
+| Instead of | You say |
+|-----------|---------|
+| `agent-browser open ... && snapshot && click e4 && ...` | `/e2e-run check if login works` |
+| Figuring out which tests cover your change | `/e2e-run I changed the payment form` |
+| Writing a new test from scratch | `/e2e-run test the new export feature` (auto-generated) |
+| Re-running last week's failures manually | `/e2e-run --regressions` |
+
+---
+
+## Test format
+
+Tests are YAML — readable, editable, auto-generated:
 
 ```yaml
-name: "Upload PDF et pipeline"
+name: "Upload PDF and verify pipeline"
 priority: high
 requires_auth: true
 timeout: 120s
 
 data:
   pdf_file: "data-sample/contract.pdf"
-  expected_entities: [vendeur, acquereur, notaire, prix]
+  expected_entities: [seller, buyer, notary, price]
 
 steps:
   - action: open
-    url: "{base_url}/chat"
+    url: "{base_url}/documents"
 
   - action: click
-    target: "Nouvelle conversation"
+    target: "Upload"
 
   - action: upload
     target: "file-input"
@@ -171,45 +148,69 @@ steps:
   - action: llm-wait
     timeout: 90s
     checkpoints:
-      - "OCR termine"
-      - "Entites detectees"
-      - "Indexation terminee"
+      - "OCR finished"
+      - "Entities detected"
+      - "Indexing complete"
 
   - action: llm-check
-    criteria: "Entites incluent : {data.expected_entities}"
+    criteria: "Entities include: {data.expected_entities}"
     severity: critical
     screenshot: entities.png
 ```
 
-Les selecteurs utilisent le **texte visible** ("Nouvelle conversation"), pas des selecteurs CSS ou des refs DOM qui cassent a chaque render.
+Selectors use **visible text** (`"Upload"`, `"file-input"`), not DOM refs that break on re-render.
+
+### Available actions
+
+| Action | What it does | Execution |
+|--------|-------------|-----------|
+| `open` | Navigate to URL | Direct |
+| `click` | Click by visible text | Direct |
+| `fill` | Type into input by placeholder/label | Direct |
+| `press` | Keyboard key | Direct |
+| `upload` | Upload a file | Direct |
+| `select` | Pick dropdown option | Direct |
+| `wait` | Fixed delay | Direct |
+| `assert_url` | Check current URL | Direct |
+| `assert_text` | Check text on page | Direct |
+| `screenshot` | Capture + **mandatory AI validation** | Direct + AI |
+| `include` | Reuse steps from another manifest | Direct |
+| `llm-wait` | Poll until async conditions are met | AI polls every 3s |
+| `llm-check` | AI evaluates page against criteria | AI |
 
 ---
 
 ## Installation
 
-### 1. Prerequis
+### 1. Prerequisites
 
 ```bash
 npm install -g agent-browser
 agent-browser install --with-deps
 ```
 
-### 2. Installer le plugin
+### 2. Install the plugin
 
 ```bash
 /plugin marketplace add bacoco/e2e-agent-browser
 /plugin install e2e-agent-browser@e2e-agent-browser
 ```
 
-`/e2e-discover` et `/e2e-run` sont prets.
+`/e2e-discover` and `/e2e-run` are ready.
+
+### Manual alternative
+
+```bash
+git clone https://github.com/bacoco/e2e-agent-browser.git
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-run ~/.claude/skills/
+```
 
 ---
 
-## Frameworks supportes
+## Supported frameworks
 
-Next.js, React, Vue, Angular, et tout framework web avec des routes detectables. Le discover utilise des heuristiques adaptatives — s'il ne trouve pas les routes automatiquement, il demande.
-
----
+Next.js, React, Vue, Angular, and any web framework with detectable routes. The discover skill adapts — if auto-detection fails, it asks.
 
 ## License
 
