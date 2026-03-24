@@ -30,28 +30,32 @@ Manual E2E testing with agent-browser is slow, inconsistent, and forgets past fa
 
 ## Installation
 
-### Prerequisites
+### 1. Install agent-browser (prerequisite)
 
 ```bash
-# Install agent-browser
 npm install -g agent-browser
 agent-browser install --with-deps
-
-# Verify
 agent-browser --version
 ```
 
-### Install Skills
+### 2. Install the plugin in Claude Code
 
 ```bash
-# Option 1: Clone and symlink
-git clone https://github.com/bacoco/e2e-agent-browser.git
-ln -s $(pwd)/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/e2e-discover
-ln -s $(pwd)/e2e-agent-browser/skills/e2e-run ~/.claude/skills/e2e-run
+# Add the marketplace
+/plugin marketplace add bacoco/e2e-agent-browser
 
-# Option 2: Copy directly
-cp -r e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
-cp -r e2e-agent-browser/skills/e2e-run ~/.claude/skills/
+# Install the plugin
+/plugin install e2e-agent-browser@e2e-agent-browser
+```
+
+That's it. `/e2e-discover` and `/e2e-run` are now available.
+
+### Alternative: Manual install
+
+```bash
+git clone https://github.com/bacoco/e2e-agent-browser.git
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-run ~/.claude/skills/
 ```
 
 ## Quick Start
@@ -300,20 +304,23 @@ After each run, a report is generated at `e2e-tests/_results/report.md`:
 
 ```
 e2e-agent-browser/
-  skills/
-    e2e-discover/SKILL.md      # codebase exploration + manifest generation
-    e2e-run/SKILL.md            # test execution + regressions + screenshot validation
+  plugins/
+    e2e-agent-browser/            # Claude Code plugin (marketplace format)
+      README.md                   # plugin description
+      LICENSE                     # MIT
+      skills/
+        e2e-discover/SKILL.md     # codebase exploration + manifest generation
+        e2e-run/SKILL.md          # test execution + regressions + screenshot validation
   examples/
-    _config.yaml               # sample config
-    _regressions.yaml           # empty regression file
-    _shared/login.yaml          # sample login brick
-    auth/login.yaml             # sample login test
-    documents/upload-and-process.yaml  # sample upload + pipeline test
-    chat/ask-about-document.yaml       # sample chat test
+    _config.yaml                  # sample config
+    _regressions.yaml             # empty regression file
+    _shared/login.yaml            # sample login brick
+    auth/login.yaml               # sample login test
+    documents/upload-and-process.yaml   # sample upload + pipeline test
+    chat/ask-about-document.yaml        # sample chat test
   docs/
-    design-spec.md              # full design specification
-  README.md
-  LICENSE                       # MIT
+    design-spec.md                # full design specification
+  README.md                       # this file (marketplace README)
 ```
 
 ## License
