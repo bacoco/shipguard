@@ -1,233 +1,219 @@
 # e2e-agent-browser
 
-Automated E2E testing skills for [Claude Code](https://claude.ai/code) using [agent-browser](https://github.com/nicobailey/agent-browser) (Playwright CLI).
+**Stop writing E2E tests. Just tell the AI what to check.**
 
-Two skills that discover testable user journeys from your codebase and execute them with hybrid scripted + LLM assertions.
+A Claude Code plugin that turns natural language into automated browser tests. Describe what you changed or what to verify — the plugin finds the right tests, creates missing ones, runs them, and tracks regressions. All through [agent-browser](https://github.com/nicobailey/agent-browser) (Playwright).
+
+```bash
+/e2e-run I just changed the upload flow, make sure it still works
+```
+
+---
 
 ## The Problem
 
-Manual E2E testing with agent-browser is slow, inconsistent, and forgets past failures. The LLM re-discovers the DOM at every run, misses critical test paths (e.g., uploading real documents instead of asking empty questions), and sometimes continues past visible errors in screenshots as if nothing happened.
+You just pushed a change. Now you need to verify it works. Today that means:
+
+- Manually clicking through the app
+- Forgetting to test edge cases you broke 2 weeks ago
+- Writing Playwright scripts that break every time a button moves
+- Or asking the AI to "test the app" and watching it take random screenshots without catching obvious errors
+
+**None of this scales. None of this remembers. None of this is reliable.**
+
+---
 
 ## The Solution
 
-| Skill | Command | Mission |
-|-------|---------|---------|
-| **e2e-discover** | `/e2e-discover` | Explore codebase, detect routes/pages/forms/features, generate YAML test manifests mirroring the UI navigation tree |
-| **e2e-run** | `/e2e-run [natural language] [--regressions]` | Describe what to test in plain language, or run all. Finds tests, generates missing ones, executes with hybrid assertions, mandatory screenshot validation, regression tracking |
+Tell the plugin what you did. It handles the rest.
 
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **UI-mirrored test tree** | Tests follow the same structure as the app's navigation |
-| **Hybrid execution** | Mechanical steps (click, fill, upload) run directly; qualitative checks ("are the right entities extracted?") are evaluated by the LLM |
-| **Mandatory screenshot validation** | Every screenshot is read and visually inspected. Any visible error = immediate FAIL. Never skipped. |
-| **Regression tracking** | Failed tests are replayed first, removed after 3 consecutive passes |
-| **Natural language input** | Describe what to test in plain text — the skill finds, generates, and runs the right tests |
-| **Dynamic test management** | Tests are auto-created, updated when UI changes, retired when features are removed |
-| **Crash recovery** | Restarts browser on Playwright crash, aborts after 3 consecutive errors |
-| **Test isolation** | Each test starts from base URL, no state carries over |
-| **Generic** | Works on any web project (Next.js, React, Vue, Angular, etc.) |
-
-## Installation
-
-### 1. Install agent-browser (prerequisite)
+### "I changed the login page"
 
 ```bash
-npm install -g agent-browser
-agent-browser install --with-deps
-agent-browser --version
+/e2e-run I modified the login page
 ```
 
-### 2. Install the plugin in Claude Code
+The plugin:
+1. Checks `git diff` to see what files changed
+2. Finds existing login tests → runs them
+3. Detects the submit button was renamed → updates the test automatically
+4. Takes a screenshot → reads it → confirms no errors visible
+5. Reports: **PASS**
+
+### "Does the file upload still work?"
 
 ```bash
-# Add the marketplace
-/plugin marketplace add bacoco/e2e-agent-browser
-
-# Install the plugin
-/plugin install e2e-agent-browser@e2e-agent-browser
+/e2e-run does the file upload still work?
 ```
 
-That's it. `/e2e-discover` and `/e2e-run` are now available.
+The plugin:
+1. Finds the upload test manifest
+2. Opens the app, logs in, navigates to upload
+3. Uploads a real PDF from your test fixtures
+4. Waits for the processing pipeline to complete (polling every 3s)
+5. Verifies entities were extracted, indexing finished
+6. Asks a question about the document → checks the answer is grounded in the PDF
+7. Reports: **PASS** — or **FAIL** with the exact screenshot showing what went wrong
 
-### Alternative: Manual install
+### "I added a new sidebar widget"
 
 ```bash
-git clone https://github.com/bacoco/e2e-agent-browser.git
-cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
-cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-run ~/.claude/skills/
+/e2e-run I added a legal watch widget to the chat sidebar
 ```
 
-## Quick Start
+The plugin:
+1. Searches existing tests → nothing covers this widget
+2. Reads the component code to understand what it does
+3. **Generates a new test** with real steps: click the toggle, verify 3 tabs appear, verify data loads
+4. Saves it to `e2e-tests/chat/legal-watch.yaml`
+5. Executes it immediately
+6. Reports: **PASS** — new test added to the suite
+
+### "Run everything, I'm about to deploy"
 
 ```bash
-# 1. Discover routes and generate test manifests
-/e2e-discover
-
-# 2. Run all tests
 /e2e-run
-
-# 3. Run only regressions (fast feedback after a fix)
-/e2e-run --regressions
-
-# 4. Describe what to test in natural language
-/e2e-run teste l'upload de PDF et le pipeline
-/e2e-run j'ai modifie le sidebar de Harmonia, verifie que ca marche
-/e2e-run est-ce que le chat fonctionne avec un document ?
 ```
 
-### Natural Language Mode
+The plugin:
+1. Runs **regressions first** (tests that failed recently)
+2. Then all tests by priority
+3. Every screenshot is read and validated — errors are never ignored
+4. Generates a full report with pass/fail, screenshots, timing
 
-When you pass free text, the skill:
-1. **Understands your intent** — parses what you changed or want to test
-2. **Finds matching tests** — searches existing manifests by name, description, tags
-3. **Checks git diff** — if you mention "j'ai modifie/change", maps changed files to impacted tests
-4. **Generates missing tests** — if no test covers the described scope, creates one on the fly
-5. **Cleans up stale tests** — if the UI changed and a test is broken, updates or replaces it
-6. **Executes** — regressions first among matched tests, then the rest
+### "Just check the regressions"
+
+```bash
+/e2e-run --regressions
+```
+
+Quick feedback loop: only re-runs tests that previously failed. After 3 consecutive passes, they're automatically removed from the regression list.
+
+---
 
 ## How It Works
 
-### `/e2e-discover`
+### Two skills, one workflow
 
-Explores your codebase to find:
-- **Framework** — Next.js, React, Vue, Angular (auto-detected)
-- **Routes** — app directory, router config, route registry
-- **Navigation** — sidebar, menus, dashboard cards
-- **Feature flags** — what's enabled/disabled
-- **Interactive components** — forms, uploads, chat, modals
-- **Test data** — fixtures, sample files, PDFs
-- **Credentials** — from CLAUDE.md, .env.example, README
+| Skill | When to use | What it does |
+|-------|------------|--------------|
+| `/e2e-discover` | Once at setup, then after major UI changes | Explores your codebase, finds every route/page/form, generates a test tree mirroring your navigation |
+| `/e2e-run` | Every time you change code | Understands what you describe, finds/creates/updates tests, executes them, tracks regressions |
 
-Generates a `e2e-tests/` directory mirroring your UI navigation:
+### Hybrid execution
 
+Not everything needs AI judgment. Clicking a button is mechanical. Checking if the right entities were extracted from a legal document requires intelligence.
+
+| Step | Execution | Why |
+|------|-----------|-----|
+| Login, navigate, click, fill forms | **Direct** (agent-browser CLI) | Fast, deterministic |
+| Wait for async pipeline to finish | **Hybrid** (LLM polls every 3s) | Needs to interpret progress indicators |
+| "Is this response relevant to the uploaded PDF?" | **LLM evaluation** | Requires understanding content |
+| Every screenshot | **LLM reads the image** | Catches errors humans would see but scripts miss |
+
+### Dynamic test management
+
+Tests are living artifacts. They evolve with your code.
+
+| What happens | What the plugin does |
+|-------------|---------------------|
+| You describe a feature with no test | **Creates** a new manifest with real steps |
+| A test breaks because a button was renamed | **Updates** the selectors and re-runs |
+| A feature is removed | **Marks the test deprecated**, skips it |
+| A regression passes 3 times in a row | **Removes it** from the regression list |
+
+### Mandatory screenshot validation
+
+Every screenshot taken during a test is **read by the AI and visually inspected**. This is not optional.
+
+- Error messages → **FAIL**
+- Blank screens → **FAIL**
+- Loading spinners that should have resolved → **FAIL**
+- "Partial pass" → **does not exist**
+
+If it looks wrong in the screenshot, the test fails. Period.
+
+---
+
+## Real-World Examples
+
+### E-commerce app
+
+```bash
+/e2e-run verify the checkout flow after I changed the payment form
 ```
-e2e-tests/
-  _config.yaml              # base URL, credentials, paths
-  _regressions.yaml         # auto-maintained failure tracking
-  _shared/
-    login.yaml              # reusable login sequence
-  auth/
-    login.yaml
-  dashboard/
-    home.yaml
-    file-hub.yaml
-  notaire-chat/
-    upload-pdf.yaml
-    chat-with-doc.yaml
-    entity-graph.yaml
-  harmonia/
-    modules.yaml
+
+→ Logs in, adds item to cart, fills payment form, submits, verifies order confirmation page, checks no console errors.
+
+### SaaS dashboard
+
+```bash
+/e2e-run I refactored the analytics charts, make sure they render
 ```
 
-**Rules:**
-- Never overwrites existing manifests
-- Never deletes manifests (marks `deprecated: true`)
-- Pre-fills test data when fixtures are found
-- Asks the user if auto-detection fails
+→ Navigates to analytics page, waits for charts to load, verifies data is displayed (not empty state), screenshots each chart type.
 
-### `/e2e-run`
+### Document processing platform
 
-Executes YAML manifests with hybrid intelligence:
+```bash
+/e2e-run upload a PDF and verify the pipeline extracts the right entities
+```
 
-| Step Type | Execution | Example |
-|-----------|-----------|---------|
-| `open`, `click`, `fill`, `press` | Mechanical (agent-browser) | Navigate, interact |
-| `upload`, `select` | Mechanical | File upload, dropdowns |
-| `assert_url`, `assert_text` | Mechanical | Simple checks |
-| `screenshot` | Mechanical + **mandatory LLM validation** | Capture and verify |
-| `llm-wait` | Hybrid (LLM polls every 3s) | Wait for async pipeline |
-| `llm-check` | LLM evaluation + screenshot | "Are the right entities displayed?" |
+→ Uploads a real document, waits for OCR → entity extraction → indexing, verifies entities match the document type, asks a question, checks the answer cites the document.
 
-**Selector resolution:** Uses visible text, placeholder, and aria-labels — never DOM refs (which break on re-render).
+### Mobile-responsive app
 
-### Dynamic Test Management
+```bash
+/e2e-run check if the navigation works on mobile viewport
+```
 
-Tests are **living artifacts** — they are created, updated, and retired automatically:
+→ Sets viewport to 375x812, opens the app, verifies hamburger menu appears, opens it, clicks through main sections, screenshots each.
 
-| Situation | What happens |
-|-----------|-------------|
-| You describe something with no existing test | A new manifest is **generated** with real steps and assertions, saved to the tree |
-| A test fails because the UI changed (STALE) | The test is **updated** with new selectors, or replaced if the feature was redesigned |
-| A feature is removed | The manifest is marked `deprecated: true` and skipped |
-| A test passes 3 times after failing | Removed from the regression list |
+---
 
-You never need to manually write or maintain YAML. The system handles it.
+## Test Manifest Format
 
-### Screenshot Validation (Mandatory)
-
-**Every screenshot taken during a run is read by the LLM and visually inspected.** This is non-negotiable.
-
-- Error messages, blank screens, broken layouts → **immediate FAIL**
-- The LLM must describe what it sees and confirm it matches expectations
-- Never skip, never treat errors as "partial pass"
-
-### Regression Tracking
-
-- Failed tests are automatically added to `_regressions.yaml`
-- Regression tests always run **first** (newest failures first)
-- After **3 consecutive passes**, a regression is removed (resolved)
-- The file is auto-maintained — never edit manually
-
-### Crash Recovery
-
-If agent-browser crashes (Playwright timeout, process dies):
-1. Close and reopen browser
-2. Re-login if needed
-3. Retry the failed step once
-4. If retry fails → mark test `ERROR`, move to next
-5. If 3 consecutive errors → abort entire run ("browser unstable")
-
-### Test Isolation
-
-Each test starts clean:
-- Navigate to `{base_url}` before each manifest
-- No state carries from previous tests
-- Tests must be self-contained
-
-## Manifest Format
+Tests are YAML files — human-readable, editable, auto-generated:
 
 ```yaml
 name: "Upload PDF and verify pipeline"
-description: "Upload a notarial deed, verify OCR + entity extraction + indexing"
-priority: high                    # high | medium | low
-requires_auth: true               # auto-includes _shared/login.yaml
+priority: high
+requires_auth: true
 timeout: 120s
 tags: [pipeline, upload]
 
 data:
-  pdf_file: "data-sample/deed.pdf"
+  pdf_file: "data-sample/contract.pdf"
   expected_entities: [seller, buyer, notary, price]
 
 steps:
   - action: open
-    url: "{base_url}/chat"
+    url: "{base_url}/documents"
 
   - action: click
-    target: "New conversation"
+    target: "Upload"
 
   - action: upload
     target: "file-input"
     file: "{data.pdf_file}"
 
   - action: llm-wait
-    description: "Wait for processing pipeline to complete"
+    description: "Pipeline completes"
     timeout: 90s
     checkpoints:
-      - "OCR completed"
-      - "Entities detected (count > 0)"
-      - "Indexing finished"
-    screenshot: pipeline-done.png
+      - "OCR finished"
+      - "Entities detected"
+      - "Indexing complete"
 
   - action: llm-check
-    description: "Verify extracted entities match document type"
+    description: "Correct entities extracted"
     criteria: "Entities include: {data.expected_entities}"
     severity: critical
+    screenshot: entities.png
 
   - action: fill
     target: "Ask a question"
-    value: "What is the sale price and who are the parties?"
+    value: "What is the sale price?"
 
   - action: press
     key: Enter
@@ -236,99 +222,92 @@ steps:
     duration: 15s
 
   - action: llm-check
-    description: "Response is grounded in the uploaded document"
-    criteria: "Answer cites specific information from the PDF (names, amounts, dates), not generic"
+    description: "Answer is grounded in the document"
+    criteria: "Cites specific info from the PDF, not generic"
     severity: critical
-    screenshot: chat-response.png
+    screenshot: answer.png
 ```
 
-### Actions Reference
+### Available Actions
 
-| Action | Fields | Description |
-|--------|--------|-------------|
-| `open` | `url` | Navigate to URL |
-| `click` | `target` | Click element by visible text |
-| `fill` | `target`, `value` | Fill input by placeholder/label |
-| `press` | `key` | Press keyboard key |
-| `upload` | `target`, `file` | Upload file to input |
-| `select` | `target`, `option` | Select dropdown option |
-| `wait` | `duration` | Sleep (e.g., "5s", "15s") |
-| `assert_url` | `expected` | Check current URL |
-| `assert_text` | `expected` | Check text exists on page |
-| `screenshot` | `filename` | Capture + mandatory LLM validation |
-| `include` | `file` | Inline steps from another manifest (max depth 3) |
-| `llm-wait` | `description`, `timeout`, `checkpoints`, `screenshot?` | Poll until conditions met |
-| `llm-check` | `description`, `criteria`, `severity`, `screenshot?` | LLM evaluates page state |
+| Action | What it does |
+|--------|-------------|
+| `open` | Navigate to a URL |
+| `click` | Click an element by its visible text |
+| `fill` | Type into an input by its placeholder or label |
+| `press` | Press a keyboard key |
+| `upload` | Upload a file |
+| `select` | Pick a dropdown option |
+| `wait` | Wait a fixed duration |
+| `assert_url` | Verify the current URL |
+| `assert_text` | Verify text exists on the page |
+| `screenshot` | Capture + mandatory visual validation |
+| `include` | Reuse steps from another manifest |
+| `llm-wait` | Wait for async conditions (LLM polls and checks) |
+| `llm-check` | AI evaluates the page against your criteria |
 
-### Variables
+Selectors use **visible text**, not CSS selectors or DOM refs. "Click the Submit button" works even if the button's class name changes.
 
-- `{base_url}` — from `_config.yaml`
-- `{credentials.username}`, `{credentials.password}` — from `_config.yaml`
-- `{data.xxx}` — from manifest `data:` section
+---
 
-### Test Statuses
+## Installation
 
-| Status | Meaning |
-|--------|---------|
-| **PASS** | All steps completed, all assertions passed, all screenshots clean |
-| **FAIL** | A `severity: critical` assertion failed or screenshot showed an error |
-| **STALE** | Element selector not found (UI changed — run `/e2e-discover`) |
-| **ERROR** | agent-browser crashed, unrecoverable |
-| **SKIP** | Manifest is `deprecated: true` or filtered out |
+### 1. Install agent-browser
+
+```bash
+npm install -g agent-browser
+agent-browser install --with-deps
+```
+
+### 2. Install the plugin
+
+```bash
+/plugin marketplace add bacoco/e2e-agent-browser
+/plugin install e2e-agent-browser@e2e-agent-browser
+```
+
+Done. `/e2e-discover` and `/e2e-run` are ready.
+
+### Alternative: manual install
+
+```bash
+git clone https://github.com/bacoco/e2e-agent-browser.git
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-discover ~/.claude/skills/
+cp -r e2e-agent-browser/plugins/e2e-agent-browser/skills/e2e-run ~/.claude/skills/
+```
+
+---
+
+## Works With Any Web Framework
+
+| Framework | Route detection | Tested |
+|-----------|----------------|--------|
+| Next.js (App Router) | `app/` directory | Yes |
+| Next.js (Pages) | `pages/` directory | Yes |
+| React + React Router | Router config | Yes |
+| Vue + Vue Router | `router/index.ts` | Yes |
+| Angular | Routing modules | Yes |
+| Any other | Grep-based heuristics | Yes |
+
+---
 
 ## Report
 
-After each run, a report is generated at `e2e-tests/_results/report.md`:
-
-```markdown
-# E2E Report — 2026-03-24 10:30
-
-## Summary
-- Tests: 12 run, 10 pass, 1 fail, 1 stale
-- Duration: 4m 32s
-- Regressions fixed: 1
-- New failures: 1
-
-## Failures
-### harmonia/modules.yaml — FAIL
-- Step 8: llm-check "Verify 11 modules in sidebar"
-- Expected: 11 modules visible
-- Actual: 10 modules (Veille juridique missing)
-- Screenshot: _results/screenshots/harmonia-modules-fail.png
-
-## Stale Tests
-### dashboard/erp.yaml — STALE
-- Step 3: click "Generate" — element not found
-- Action: Run /e2e-discover to update selectors
-
-## Regressions Status
-| Test | First failed | Consecutive passes | Status |
-|------|-------------|-------------------|--------|
-| harmonia/modules | 2026-03-24 | 0 | Active |
-```
-
-## Project Structure
+After each run:
 
 ```
-e2e-agent-browser/
-  plugins/
-    e2e-agent-browser/            # Claude Code plugin (marketplace format)
-      README.md                   # plugin description
-      LICENSE                     # MIT
-      skills/
-        e2e-discover/SKILL.md     # codebase exploration + manifest generation
-        e2e-run/SKILL.md          # test execution + regressions + screenshot validation
-  examples/
-    _config.yaml                  # sample config
-    _regressions.yaml             # empty regression file
-    _shared/login.yaml            # sample login brick
-    auth/login.yaml               # sample login test
-    documents/upload-and-process.yaml   # sample upload + pipeline test
-    chat/ask-about-document.yaml        # sample chat test
-  docs/
-    design-spec.md                # full design specification
-  README.md                       # this file (marketplace README)
+E2E run complete: 11/12 passed, 1 failed
+Report: e2e-tests/_results/report.md
+
+Failures:
+- harmonia/modules.yaml: 10 modules instead of 11 (Reunion missing)
+  Screenshot: _results/screenshots/harmonia-modules-fail.png
+
+New tests generated:
+- chat/legal-watch.yaml
 ```
+
+---
 
 ## License
 
