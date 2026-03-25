@@ -1,6 +1,8 @@
 ---
 name: e2e-discover
 description: Explore a web project's codebase to discover testable user journeys, then generate YAML test manifests mirroring the UI navigation tree. Use when setting up E2E tests for a new project, or after structural UI changes (new routes, removed pages, navigation updates). Trigger on "e2e discover", "generate e2e tests", "discover test routes", "update test manifests", "scan UI for tests".
+context: fork
+argument-hint: "[project-path]"
 ---
 
 # /e2e-discover — Discover & Generate E2E Test Manifests
@@ -225,6 +227,19 @@ Run `/e2e-run` to execute tests.
 Run `/e2e-run --regressions` to run only known failures.
 ```
 
+## agent-browser Reference
+
+| Command | Usage | Example |
+|---------|-------|---------|
+| `open <url>` | Navigate to URL | `agent-browser open http://localhost:3000` |
+| `snapshot` | Accessibility tree with refs (for AI) | `agent-browser snapshot` |
+| `click <ref>` | Click element by ref | `agent-browser click e12` |
+| `fill <ref> <text>` | Clear and fill input | `agent-browser fill e10 "alex"` |
+| `upload <sel> <files>` | Upload file to input | `agent-browser upload "#file-input" ./test.md` |
+| `eval <js>` | Run JavaScript in page | `agent-browser eval 'document.querySelector("input").id'` |
+| `screenshot <path>` | Take screenshot | `agent-browser screenshot /tmp/capture.png` |
+| `close` | Close browser | `agent-browser close` |
+
 ## Key Rules
 
 1. **NEVER overwrite existing manifests** — only create new ones
@@ -233,3 +248,15 @@ Run `/e2e-run --regressions` to run only known failures.
 4. **Use real element labels** — do a snapshot of each page to find actual button/input text
 5. **Pre-fill test data** when fixtures are found
 6. **Ask the user** if framework or route detection fails
+
+## Final Checklist
+
+Before considering the discovery complete, verify:
+
+- [ ] agent-browser installed and functional
+- [ ] Framework detected (or generic fallback documented)
+- [ ] At least one route collected
+- [ ] `_config.yaml` created or existing one left untouched
+- [ ] `_regressions.yaml` created (empty) if absent
+- [ ] No existing manifest overwritten
+- [ ] Summary displayed (generated / skipped / deprecated)

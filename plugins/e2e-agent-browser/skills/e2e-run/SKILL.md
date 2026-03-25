@@ -1,6 +1,8 @@
 ---
 name: e2e-run
 description: Execute E2E test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "e2e run", "run e2e tests", "test regressions", "run tests", "e2e-run", "check if the app works", "teste le chat", "j'ai modifie X verifie que ca marche".
+context: conversation
+argument-hint: "[tests to run or natural language description]"
 ---
 
 # /e2e-run — Execute E2E Tests
@@ -41,8 +43,10 @@ When you pass free text, the skill operates in **impact analysis mode**:
 3. **Generate missing tests** — If the described scope has no existing test:
    - Run a targeted mini-discover on that area (read the component, understand what it does)
    - Generate a new manifest with real steps and assertions
+   - **Tag the manifest** with `auto_generated: true`, `generated_by: e2e-run`, `generated_date: "{date}"` in the frontmatter
    - Save it to the test tree
    - Then execute it
+   - Auto-generated manifests are reported separately. After 3 consecutive passes, prompt the user to validate or remove them
 
 4. **Execute** — Run matched + generated tests (regressions among them first)
 
@@ -110,6 +114,12 @@ Before executing, replace variables in all string fields:
 - `{base_url}` → from `_config.yaml`
 - `{credentials.username}`, `{credentials.password}` → from `_config.yaml`
 - `{data.xxx}` → from the manifest's `data:` section
+
+**Internal variables** (resolved by the skill, not from config):
+- `{session_id}` → `e2e-run-{timestamp}` (unique per execution)
+- `{screenshots_dir}` → value of `screenshots_dir` in `_config.yaml`
+- `{report_path}` → value of `report_path` in `_config.yaml`
+- `{date}`, `{time}` → current date and time
 
 #### Include Resolution
 
@@ -294,6 +304,10 @@ Write to `{report_path}` (default: `e2e-tests/_results/report.md`):
 ```markdown
 # E2E Report — {date} {time}
 
+> **Note:** These tests verify visual page loading and surface UI interactions.
+> They do not replace unit tests, integration tests, or deterministic E2E tests (pytest, Playwright).
+> llm-check assertions are evaluated by the LLM with no external observer.
+
 ## Summary
 - Tests: {total} run, {pass} pass, {fail} fail, {stale} stale, {error} error, {skip} skip
 - Duration: {total_time}
@@ -349,3 +363,30 @@ New tests generated:
 - {test_path}
 {/if}
 ```
+
+## agent-browser Reference
+
+| Command | Usage | Example |
+|---------|-------|---------|
+| `open <url>` | Navigate to URL | `agent-browser open http://localhost:3000` |
+| `snapshot` | Accessibility tree with refs (for AI) | `agent-browser snapshot` |
+| `click <ref>` | Click element by ref | `agent-browser click e12` |
+| `fill <ref> <text>` | Clear and fill input | `agent-browser fill e10 "alex"` |
+| `upload <sel> <files>` | Upload file to input | `agent-browser upload "#file-input" ./test.md` |
+| `eval <js>` | Run JavaScript in page | `agent-browser eval 'document.querySelector("input").id'` |
+| `screenshot <path>` | Take screenshot | `agent-browser screenshot /tmp/capture.png` |
+| `get url` | Get current URL | `agent-browser get url` |
+| `close` | Close browser | `agent-browser close` |
+
+## Final Checklist
+
+Before considering the run complete, verify:
+
+- [ ] Pre-flight passed (agent-browser, `_config.yaml`, `base_url` reachable)
+- [ ] Browser opened (single session)
+- [ ] Auth executed (if `requires_auth`)
+- [ ] Every screenshot read and visually validated
+- [ ] `_regressions.yaml` updated (failures added, 3 passes → removed)
+- [ ] Report written to `{report_path}`
+- [ ] Browser closed
+- [ ] Summary displayed (pass/fail/stale)
