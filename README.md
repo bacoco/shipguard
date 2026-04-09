@@ -38,7 +38,7 @@ claude plugin marketplace add bacoco/agentic-visual-debugger
 claude plugin install agentic-visual-debugger
 ```
 
-Then start a new conversation to load the skills.
+Then restart Claude Code to load the new skills (skills are loaded at startup).
 
 **Step 2** — Scan your app:
 
