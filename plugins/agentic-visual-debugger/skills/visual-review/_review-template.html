@@ -104,7 +104,8 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
 .lb-body{flex:1;display:flex;overflow:hidden}
 .lb-img-area{flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:auto;background:#000}
 .lb-img-container{position:relative;display:inline-block;max-width:100%;max-height:100%}
-.lb-img{max-width:calc(100vw - 380px);max-height:calc(100vh - 56px);object-fit:contain;display:block}
+.lb-img{max-width:100%;max-height:calc(100vh - 56px);object-fit:contain;display:block;transition:transform .15s ease}
+.lb-img-container{transform-origin:center center}
 .lb-canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .lb-canvas.drawing{pointer-events:auto;cursor:crosshair}
 
@@ -135,13 +136,17 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
 .success-box code{background:var(--secondary);padding:4px 12px;border-radius:6px;font-size:15px;color:var(--primary);font-weight:700}
 .success-box-hint{font-size:12px;color:var(--muted);margin-top:16px}
 
-/* Detail sidebar in lightbox */
-.lb-detail{width:360px;background:var(--card);border-left:1px solid var(--border);overflow-y:auto;padding:20px;flex-shrink:0}
-.lb-desc{font-size:13px;color:var(--muted);margin-bottom:16px}
-.lb-section{margin-bottom:16px}
-.lb-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary);margin-bottom:8px}
-.lb-step{padding:8px 12px;background:var(--secondary);border-radius:6px;margin-bottom:4px;font-size:12px;display:flex;gap:8px}
-.lb-step-action{color:var(--primary);font-weight:600;min-width:70px}
+/* Detail sidebar in lightbox — compact, collapsible */
+.lb-detail{width:240px;background:var(--card);border-left:1px solid var(--border);overflow-y:auto;padding:14px;flex-shrink:0;transition:width .2s ease,padding .2s ease}
+.lb-detail.collapsed{width:0;padding:0;overflow:hidden;border:none}
+.lb-toggle-detail{position:absolute;top:50%;right:240px;transform:translateY(-50%);width:24px;height:48px;border-radius:6px 0 0 6px;background:var(--card);border:1px solid var(--border);border-right:none;color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:3;transition:right .2s ease}
+.lb-detail.collapsed ~ .lb-toggle-detail,.lb-toggle-detail.shifted{right:0}
+.lb-toggle-detail:hover{color:var(--fg);background:var(--secondary)}
+.lb-desc{font-size:11px;color:var(--muted);margin-bottom:10px}
+.lb-section{margin-bottom:10px}
+.lb-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--primary);margin-bottom:6px}
+.lb-step{padding:5px 8px;background:var(--secondary);border-radius:4px;margin-bottom:3px;font-size:11px;display:flex;gap:6px}
+.lb-step-action{color:var(--primary);font-weight:600;min-width:55px}
 .lb-step-detail{color:var(--fg)}
 .lb-failure{padding:12px;background:#ff6b6b15;border:1px solid #ff6b6b33;border-radius:6px;color:var(--fail);font-size:13px;margin-bottom:16px}
 .lb-url{font-size:12px;color:var(--info);margin-bottom:12px;word-break:break-all}
@@ -259,6 +264,7 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
         <span class="pen-mode-label" id="pen-mode-label">Click a tool to annotate</span>
       </div>
     </div>
+    <button class="lb-toggle-detail" id="lb-toggle-detail" title="Toggle info panel">&#9666;</button>
     <div class="lb-detail" id="lb-detail">
       <div class="lb-ba" id="lb-ba" style="display:none">
         <span class="lb-ba-label">View:</span>
@@ -785,6 +791,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
     }
 
     lb.classList.add('visible');
+    if (typeof resetZoom === 'function') resetZoom();
     if (window._annotSetup) window._annotSetup(id);
   }
 
@@ -920,6 +927,38 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
     else if (e.key === 'z') { e.preventDefault(); document.getElementById('pen-undo').click(); }
     else if (e.key === 'd') { e.preventDefault(); document.getElementById('pen-redo').click(); }
   });
+
+  // ── Detail panel toggle ──
+  document.getElementById('lb-toggle-detail').addEventListener('click', function() {
+    var detail = document.getElementById('lb-detail');
+    detail.classList.toggle('collapsed');
+    this.textContent = detail.classList.contains('collapsed') ? '\u25B8' : '\u25C2';
+    this.style.right = detail.classList.contains('collapsed') ? '0' : '240px';
+    // Resize canvas after panel toggle
+    setTimeout(function(){ if(window._annotSetup && currentTestId) window._annotSetup(currentTestId); }, 250);
+  });
+
+  // ── Zoom (mouse wheel on image) ──
+  var zoomLevel = 1;
+  var zoomMin = 1, zoomMax = 4;
+  document.getElementById('lb-img-area').addEventListener('wheel', function(e) {
+    if (!document.getElementById('lightbox').classList.contains('visible')) return;
+    e.preventDefault();
+    var delta = e.deltaY > 0 ? -0.15 : 0.15;
+    zoomLevel = Math.max(zoomMin, Math.min(zoomMax, zoomLevel + delta));
+    var container = document.getElementById('lb-img-container');
+    container.style.transform = zoomLevel === 1 ? '' : 'scale('+zoomLevel+')';
+    // Resize canvas to match
+    setTimeout(function(){ if(window._annotSetup && currentTestId) window._annotSetup(currentTestId); }, 100);
+  }, {passive:false});
+  // Reset zoom on test change
+  var _origAnnotSetup = window._annotSetup;
+  // Reset zoom when opening a new test
+  function resetZoom() {
+    zoomLevel = 1;
+    var container = document.getElementById('lb-img-container');
+    if (container) container.style.transform = '';
+  }
 
   // ── localStorage persistence ──
   var STORAGE_KEY = 'visual-review-session';
