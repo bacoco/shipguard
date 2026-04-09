@@ -2,6 +2,11 @@
   <img src="docs/hero.png" alt="Agentic Visual Debugger" width="100%">
 </p>
 
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <a href="https://github.com/bacoco/agentic-visual-debugger/releases"><img src="https://img.shields.io/github/v/release/bacoco/agentic-visual-debugger" alt="Latest Release"></a>
+</p>
+
 # agentic-visual-debugger
 
 ### Your app ships bugs you never see. This plugin catches them.
@@ -23,25 +28,49 @@ Tell Claude:
 Then:
 
 ```bash
-/e2e-discover
+/visual-discover
 ```
 
 Done. Every route in your app now has a test. For a typical Next.js app, that means 80-150 YAML manifests — you wrote nothing.
 
 ---
 
+## See It In Action
+
+### 1. Discover — AI scans your codebase and generates tests
+
+![Discover output](docs/discover-output.png)
+
+### 2. Review — Browse all screenshots in an interactive grid
+
+![Review page](docs/review-page.png)
+
+### 3. Annotate — Circle problems directly on screenshots
+
+![Annotation pen](docs/review-annotation.png)
+
+### 4. Inspect — Full details in the lightbox
+
+![Lightbox view](docs/review-lightbox.png)
+
+### 5. Fix — AI traces your annotations to source code, before/after comparison
+
+![Before and after](docs/fix-before-after.png)
+
+---
+
 ## The Full Workflow
 
 ```
-/e2e-discover       Scan your code. Generate tests.
+/visual-discover       Scan your code. Generate tests.
       |
-/e2e-run            Run tests. Capture full-page screenshots.
+/visual-run            Run tests. Capture full-page screenshots.
       |
-/e2e-review         Review. Annotate problems with a pen. Validate.
+/visual-review         Review. Annotate problems with a pen. Validate.
       |
-/e2e-review-fix     AI reads your annotations, fixes the code, shows before/after.
+/visual-fix            AI reads your annotations, fixes the code, shows before/after.
       |
-   Repeat            Until zero issues remain.
+   Repeat              Until zero issues remain.
 ```
 
 ---
@@ -49,7 +78,7 @@ Done. Every route in your app now has a test. For a typical Next.js app, that me
 ## 1. Discover
 
 ```bash
-/e2e-discover
+/visual-discover
 ```
 
 Scans routes, navigation, components, feature flags, and auth flows. Produces YAML manifests in plain language:
@@ -77,22 +106,22 @@ No CSS selectors. No brittle XPaths. Tests use **visible text**. When a button l
 Run everything:
 
 ```bash
-/e2e-run
+/visual-run
 ```
 
 Run only what you just broke:
 
 ```bash
-/e2e-run --regressions
+/visual-run --regressions
 ```
 
 Describe what you changed — the plugin figures out which tests to run:
 
 ```bash
-/e2e-run I refactored the upload pipeline
-/e2e-run does the sidebar show all 11 modules?
-/e2e-run I just fixed the prompt-lab React error
-/e2e-run check the 3 pages I modified today
+/visual-run I refactored the upload pipeline
+/visual-run does the sidebar show all 11 modules?
+/visual-run I just fixed the prompt-lab React error
+/visual-run check the 3 pages I modified today
 ```
 
 No test exists for what you described? The plugin creates one, runs it, saves it for next time.
@@ -108,13 +137,13 @@ Regressions run first. Fixed after 3 consecutive passes? Removed automatically.
 Build the review page:
 
 ```bash
-/e2e-review
+/visual-review
 ```
 
 The page opens at **http://localhost:8888**. Stop the server when you're done:
 
 ```bash
-/e2e-review-stop
+/visual-review-stop
 ```
 
 ![Review Page](docs/review-page.png)
@@ -144,7 +173,7 @@ The page opens at **http://localhost:8888**. Stop the server when you're done:
 After annotating and validating:
 
 ```bash
-/e2e-review-fix
+/visual-fix
 ```
 
 For each problem you circled:
@@ -165,12 +194,12 @@ The review page regenerates with **before/after comparison** — same grid, same
 
 | Command | What it does |
 |---------|-------------|
-| `/e2e-discover` | Scan codebase, generate test manifests |
-| `/e2e-run` | Run all tests |
-| `/e2e-run I changed X` | Run only impacted tests |
-| `/e2e-review` | Build + open review page |
-| `/e2e-review-stop` | Stop the server |
-| `/e2e-review-fix` | Fix annotated issues, before/after |
+| `/visual-discover` | Scan codebase, generate test manifests |
+| `/visual-run` | Run all tests |
+| `/visual-run I changed X` | Run only impacted tests |
+| `/visual-review` | Build + open review page |
+| `/visual-review-stop` | Stop the server |
+| `/visual-fix` | Fix annotated issues, before/after |
 
 ---
 
@@ -179,7 +208,7 @@ The review page regenerates with **before/after comparison** — same grid, same
 You just fixed 3 bugs. You don't need to re-run 112 tests.
 
 ```bash
-/e2e-run I just fixed the prompt-lab error and the dossier header count
+/visual-run I just fixed the prompt-lab error and the dossier header count
 ```
 
 The plugin checks `git diff`, finds the impacted tests, runs only those. 30 seconds instead of 40 minutes.
@@ -187,7 +216,7 @@ The plugin checks `git diff`, finds the impacted tests, runs only those. 30 seco
 Then:
 
 ```bash
-/e2e-review
+/visual-review
 ```
 
 The review page opens with **only the tests that just ran** — the "Last run only" filter is on by default. You see 3 screenshots, not 112. Review, annotate if needed, done.
@@ -197,16 +226,16 @@ The review page opens with **only the tests that just ran** — the "Last run on
 ```bash
 # 1. You fix code
 # 2. Run only impacted tests
-/e2e-run I changed the sidebar and the upload flow
+/visual-run I changed the sidebar and the upload flow
 
 # 3. Review only those
-/e2e-review
+/visual-review
 
 # 4. If issues remain, annotate + fix
-/e2e-review-fix
+/visual-fix
 
 # 5. Stop server when done
-/e2e-review-stop
+/visual-review-stop
 ```
 
 No need to re-discover. No need to re-run everything. The plugin knows what changed.
@@ -215,8 +244,8 @@ No need to re-discover. No need to re-run everything. The plugin knows what chan
 
 ## What Makes This Different
 
-| Traditional E2E | agentic-visual-debugger |
-|----------------|-------------------|
+| Traditional Testing | agentic-visual-debugger |
+|--------------------|-------------------|
 | You write every test | AI writes every test |
 | Tests break when UI changes | Tests adapt to UI changes |
 | Screenshots sit in CI artifacts nobody checks | AI reads every screenshot, fails on errors |
@@ -246,6 +275,19 @@ Tested on a production app with **112 routes, 16 services, and 6 authentication 
 Tell Claude:
 
 > Install the skills from github.com/bacoco/agentic-visual-debugger
+
+---
+
+## Development
+
+Clone and install skills locally:
+
+```bash
+git clone https://github.com/bacoco/agentic-visual-debugger.git
+cp -r plugins/e2e-agent-browser ~/.claude/plugins/
+```
+
+No npm, no build step.
 
 ---
 
