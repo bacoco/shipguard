@@ -9,162 +9,140 @@
 
 # agentic-visual-debugger
 
-### Your app ships bugs you never see. This plugin catches them.
+### You push code. You don't know what you broke. This plugin does.
 
-One command scans your entire frontend. Another runs every test. A third lets you circle the problems with a pen. A fourth fixes them while you watch.
+One command. Every page in your app gets tested, screenshotted, and inspected by AI. Broken layout? Missing data? Error toast hiding in a corner? It catches it. You circle the problem with a pen. The AI fixes it.
 
-No Playwright scripts. No Cypress configs. No test code at all.
-
-**Zero test code written by you. Ever.**
+**You never write a single test.**
 
 ---
 
-## Setup
+## You vs. this plugin
 
-Tell Claude:
+| What you do today | What happens with this plugin |
+|--------------------|-------------------|
+| Write tests for every page | AI generates them from your codebase |
+| Tests break every time you refactor | Tests use visible text, not CSS selectors — they adapt |
+| Screenshots rot in CI artifacts | AI reads every screenshot and fails on visual errors |
+| Bug? Read the test code, figure out what broke | Circle the problem on the screenshot. AI traces it to the source and fixes it. |
+| "Did my fix actually work?" | Side-by-side before/after comparison |
+
+---
+
+## 2 minutes from install to first result
+
+**Step 1** — Install the plugin in [Claude Code](https://claude.ai/code):
 
 > Install the skills from github.com/bacoco/agentic-visual-debugger
 
-Then run `/visual-discover`. Every route in your app now has a test. For a typical Next.js app, that means 80-150 YAML manifests — you wrote nothing.
+**Step 2** — Scan your app:
+
+```
+/visual-discover
+```
+
+Done. 80-150 tests generated. You wrote nothing.
+
+**Step 3** — Run them:
+
+```
+/visual-run
+```
+
+Every page screenshotted. Every screenshot inspected. Failures flagged.
+
+![All your tests in one view](docs/discover-output.png)
 
 ---
 
-## The Workflow
+## See a bug? Circle it.
+
+`/visual-review` opens an interactive review page. Every test is a card. Click one to see the full screenshot.
+
+![Review page](docs/review-page.png)
+
+Spot a problem? Click the pen. Draw a rectangle around it. That's it — you just told the AI exactly where to look.
+
+![Circle the bug](docs/review-annotation.png)
+
+Select the tests you want fixed. Click **"Validate & Generate Report"**. This exports a fix manifest — the list of everything the AI needs to fix, with your annotations attached.
+
+![Lightbox with details](docs/review-lightbox.png)
+
+---
+
+## The AI fixes it while you watch
 
 ```
-/visual-discover       Scan your code. Generate tests.
-      |
-/visual-run            Run tests. Capture full-page screenshots.
-      |
-/visual-review         Review. Annotate problems with a pen.
-      |
-/visual-fix            AI reads your annotations, fixes the code, shows before/after.
-      |
-   Repeat              Until zero issues remain.
+/visual-fix
 ```
 
-### Discover
+For each problem you circled:
 
-`/visual-discover` scans routes, navigation, components, feature flags, and auth flows. Produces YAML manifests in plain language:
+1. The AI reads your screenshot and zooms into the region you marked
+2. It traces the visual bug to the exact component and line of code
+3. It implements the fix
+4. It rebuilds the app
+5. It re-runs that specific test and captures a new screenshot
 
-```yaml
-name: "Upload PDF and verify pipeline"
-priority: high
-steps:
-  - action: open
-    url: "{base_url}/documents"
-  - action: upload
-    target: "file-input"
-    file: "{data.pdf_file}"
-  - action: llm-check
-    criteria: "Entities include: seller, buyer, notary, price"
-    screenshot: entities.png
-```
-
-No CSS selectors. No brittle XPaths. Tests use **visible text**. When a button label changes, the plugin adapts.
-
-![Discover output](docs/discover-output.png)
-
-### Run
-
-`/visual-run` runs everything. Or describe what you changed — the plugin figures out which tests to run:
-
-```bash
-/visual-run I refactored the upload pipeline
-/visual-run I just fixed the prompt-lab React error
-/visual-run check the 3 pages I modified today
-```
-
-No test exists for what you described? The plugin creates one, runs it, saves it for next time. Every screenshot is full-page and inspected by the AI. Error toast? Blank page? Spinner stuck? Instant FAIL.
-
-Regressions run first. Fixed after 3 consecutive passes? Removed automatically.
-
-### Review
-
-`/visual-review` builds an interactive page at **http://localhost:8888**.
-
-![Review Page](docs/review-page.png)
-
-Browse every test as a card with thumbnail, pass/fail badge, and priority. Filter by status, category, or name. Click any card to open the lightbox with the full screenshot and steps to reproduce.
-
-**See a problem? Mark it.**
-
-Click the pen icon and draw red rectangles directly on the screenshot to circle exactly what's wrong. Each annotation auto-selects the test for fixing.
-
-![Annotating a problem area](docs/review-annotation.png)
-
-You can also select multiple tests by checking the cards — whether you annotate them or not. The floating action bar lets you:
-
-- **"Validate & Generate Report"** — exports a fix manifest (JSON) with your annotations + a markdown report. This is what `/visual-fix` reads.
-- **"Re-run selected"** — exports a re-run manifest to test only those specific tests again.
-- **"Copy IDs"** — copies test paths to clipboard.
-
-![Lightbox with annotation pen](docs/review-lightbox.png)
-
-### Fix
-
-Once you've annotated and exported, run `/visual-fix`. It picks up the fix manifest automatically.
-
-For each test you selected:
-
-1. Reads the screenshot and focuses on your marked regions
-2. Traces the visual bug to the exact source component and line
-3. Implements the fix
-4. Rebuilds the app
-5. Re-runs that specific test to capture a new "after" screenshot
-
-When all fixes are done, the review page regenerates with a **before/after comparison tab** — the same grid, but now each fixed test shows the old and new screenshot side by side.
+The review page regenerates with a **before/after comparison tab**. Old screenshot on the left, new one on the right. You see exactly what changed.
 
 ![Before and after](docs/fix-before-after.png)
 
-**Still see problems?** Open the comparison tab, annotate again, export, run `/visual-fix` again. The loop continues until you stop finding issues.
+Still not right? Annotate again. Run `/visual-fix` again. **The loop closes when you stop finding problems.**
 
 ---
 
-## All Commands
+## After a code change — test only what matters
+
+You don't re-run 112 tests after fixing a button. Just describe what you changed:
+
+```
+/visual-run I fixed the sidebar and the upload flow
+```
+
+The plugin checks your `git diff`, finds the 3 impacted tests, runs those. 30 seconds, not 40 minutes. No test exists for what you changed? The plugin creates one on the fly.
+
+---
+
+## Commands
 
 | Command | What it does |
 |---------|-------------|
-| `/visual-discover` | Scan codebase, generate test manifests |
-| `/visual-run` | Run all tests |
-| `/visual-run I changed X` | Run only impacted tests |
-| `/visual-review` | Build + open review page |
-| `/visual-review-stop` | Stop the server |
-| `/visual-fix` | Fix annotated issues, before/after |
+| `/visual-discover` | Scan your codebase, generate tests for every route |
+| `/visual-run` | Run tests — all, or describe what changed |
+| `/visual-review` | Open the visual review page |
+| `/visual-fix` | Fix everything you annotated, show before/after |
+| `/visual-review-stop` | Stop the review server |
 
 ---
 
-## What Makes This Different
+## Proven on a real production app
 
-| Traditional Testing | agentic-visual-debugger |
-|--------------------|-------------------|
-| You write every test | AI writes every test |
-| Tests break when UI changes | Tests adapt to UI changes |
-| Screenshots sit in CI artifacts nobody checks | AI reads every screenshot, fails on errors |
-| Fixing requires reading test code | Circle the problem, AI traces to source |
-| Before/after is a mental exercise | Before/after is a visual comparison page |
-| Tests are code you maintain | Tests are YAML you barely touch |
+**112 routes. 16 backend services. 6 authentication flows.**
+
+Next.js, React, Vue, Angular — any framework with detectable routes. Handles JWT auth, feature flags, file uploads, multi-step workflows, LLM-generated content, responsive layouts.
+
+This isn't a demo. It runs daily on a real SaaS platform.
 
 ---
 
-## Built for Real Apps
+## How it works under the hood
 
-Works with **Next.js, React, Vue, Angular** — any framework with detectable routes. Handles:
+Tests are YAML manifests that describe what the user sees — not how the DOM is structured:
 
-- JWT/cookie authentication flows
-- Feature-flagged routes
-- Multi-step workflows (upload, process, verify)
-- LLM-generated content validation
-- File uploads
-- Responsive layouts
+```yaml
+- action: click
+  target: "Nouvelle conversation"     # visible text, not .btn-primary-v2
+- action: llm-check
+  criteria: "The page shows seller, buyer, and notary names"
+```
 
-Tested on a production app with **112 routes, 16 services, and 6 authentication flows**.
+When a CSS class changes, Playwright tests break. These don't — because they never knew about the class.
+
+For the full architecture and design decisions, read the **[Design Spec](docs/design-spec.md)**.
 
 ---
-
-## Product Roadmap
-
-Read the **[Product Readiness PRD](docs/PRD-product-readiness.md)**.
 
 ## Development
 
