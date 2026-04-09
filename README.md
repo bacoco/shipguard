@@ -19,69 +19,33 @@ No Playwright scripts. No Cypress configs. No test code at all.
 
 ---
 
-## 30-Second Setup
+## Setup
 
 Tell Claude:
 
 > Install the skills from github.com/bacoco/agentic-visual-debugger
 
-Then:
-
-```bash
-/visual-discover
-```
-
-Done. Every route in your app now has a test. For a typical Next.js app, that means 80-150 YAML manifests — you wrote nothing.
+Then run `/visual-discover`. Every route in your app now has a test. For a typical Next.js app, that means 80-150 YAML manifests — you wrote nothing.
 
 ---
 
-## See It In Action
-
-### 1. Discover — AI scans your codebase and generates tests
-
-![Discover output](docs/discover-output.png)
-
-### 2. Review — Browse all screenshots in an interactive grid
-
-![Review page](docs/review-page.png)
-
-### 3. Annotate — Circle problems directly on screenshots
-
-![Annotation pen](docs/review-annotation.png)
-
-### 4. Inspect — Full details in the lightbox
-
-![Lightbox view](docs/review-lightbox.png)
-
-### 5. Fix — AI traces your annotations to source code, before/after comparison
-
-![Before and after](docs/fix-before-after.png)
-
----
-
-## The Full Workflow
+## The Workflow
 
 ```
 /visual-discover       Scan your code. Generate tests.
       |
 /visual-run            Run tests. Capture full-page screenshots.
       |
-/visual-review         Review. Annotate problems with a pen. Validate.
+/visual-review         Review. Annotate problems with a pen.
       |
 /visual-fix            AI reads your annotations, fixes the code, shows before/after.
       |
    Repeat              Until zero issues remain.
 ```
 
----
+### Discover
 
-## 1. Discover
-
-```bash
-/visual-discover
-```
-
-Scans routes, navigation, components, feature flags, and auth flows. Produces YAML manifests in plain language:
+`/visual-discover` scans routes, navigation, components, feature flags, and auth flows. Produces YAML manifests in plain language:
 
 ```yaml
 name: "Upload PDF and verify pipeline"
@@ -99,94 +63,50 @@ steps:
 
 No CSS selectors. No brittle XPaths. Tests use **visible text**. When a button label changes, the plugin adapts.
 
----
+![Discover output](docs/discover-output.png)
 
-## 2. Run
+### Run
 
-Run everything:
-
-```bash
-/visual-run
-```
-
-Run only what you just broke:
-
-```bash
-/visual-run --regressions
-```
-
-Describe what you changed — the plugin figures out which tests to run:
+`/visual-run` runs everything. Or describe what you changed — the plugin figures out which tests to run:
 
 ```bash
 /visual-run I refactored the upload pipeline
-/visual-run does the sidebar show all 11 modules?
 /visual-run I just fixed the prompt-lab React error
 /visual-run check the 3 pages I modified today
 ```
 
-No test exists for what you described? The plugin creates one, runs it, saves it for next time.
-
-**Every screenshot is full-page and inspected by the AI.** Error toast? Blank page? Spinner stuck? Instant FAIL.
+No test exists for what you described? The plugin creates one, runs it, saves it for next time. Every screenshot is full-page and inspected by the AI. Error toast? Blank page? Spinner stuck? Instant FAIL.
 
 Regressions run first. Fixed after 3 consecutive passes? Removed automatically.
 
----
+### Review
 
-## 3. Review
-
-Build the review page:
-
-```bash
-/visual-review
-```
-
-The page opens at **http://localhost:8888**. Stop the server when you're done:
-
-```bash
-/visual-review-stop
-```
+`/visual-review` builds an interactive page at **http://localhost:8888**.
 
 ![Review Page](docs/review-page.png)
 
-**What you see:**
-
-- **Grid** — every test as a card with thumbnail, pass/fail badge, priority. Loads fast (thumbnails generated at build time).
-- **"Last run only"** — on by default, shows only the tests that were actually run. Toggle to see the full catalog.
-- **Filters** — by status (pass/fail/stale), by category (sidebar), by name (search).
-- **Fullscreen** — click the eye icon or the image itself. Click again to exit.
-- **Lightbox** — click any card to see the full screenshot + exact steps to reproduce.
-- **Annotation pen** — click the pen icon, draw red rectangles directly on the screenshot to mark exactly where the problem is. Works in normal and fullscreen view. Each annotation auto-selects the test.
+- **Grid** — every test as a card with thumbnail, pass/fail badge, priority
+- **Filters** — by status (pass/fail/stale), by category, by name
+- **Lightbox** — click any card for the full screenshot + steps to reproduce
+- **Annotation pen** — draw red rectangles directly on problems. Each annotation auto-selects the test.
 
 ![Annotating a problem area](docs/review-annotation.png)
 
-- **Multi-select** — check multiple tests, then:
-  - **"Validate & Generate Report"** — downloads a markdown report + JSON fix manifest
-  - **"Re-run selected"** — downloads a re-run manifest with annotation coordinates
-  - **"Copy IDs"** — copies test paths to clipboard
+- **Multi-select** — check multiple tests, then export a re-run manifest or a fix manifest with annotation coordinates
 
 ![Lightbox with annotation pen](docs/review-lightbox.png)
 
----
+### Fix
 
-## 4. Fix
-
-After annotating and validating:
-
-```bash
-/visual-fix
-```
-
-For each problem you circled:
+`/visual-fix` processes your annotations. For each problem you circled:
 
 1. AI reads the screenshot, focuses on your marked region
 2. Traces the visual bug to the exact component and line
-3. Implements the fix
-4. Rebuilds the app
-5. Recaptures the screenshot
+3. Implements the fix, rebuilds, recaptures the screenshot
 
-The review page regenerates with **before/after comparison** — same grid, same annotation tools. Still see problems? Select, annotate, validate, fix again.
+The review page regenerates with **before/after comparison**. Still see problems? Annotate, fix again.
 
-**The loop closes when you stop finding problems.**
+![Before and after](docs/fix-before-after.png)
 
 ---
 
@@ -200,45 +120,6 @@ The review page regenerates with **before/after comparison** — same grid, same
 | `/visual-review` | Build + open review page |
 | `/visual-review-stop` | Stop the server |
 | `/visual-fix` | Fix annotated issues, before/after |
-
----
-
-## After a Fix — Test Only What Changed
-
-You just fixed 3 bugs. You don't need to re-run 112 tests.
-
-```bash
-/visual-run I just fixed the prompt-lab error and the dossier header count
-```
-
-The plugin checks `git diff`, finds the impacted tests, runs only those. 30 seconds instead of 40 minutes.
-
-Then:
-
-```bash
-/visual-review
-```
-
-The review page opens with **only the tests that just ran** — the "Last run only" filter is on by default. You see 3 screenshots, not 112. Review, annotate if needed, done.
-
-**The full workflow after any code change:**
-
-```bash
-# 1. You fix code
-# 2. Run only impacted tests
-/visual-run I changed the sidebar and the upload flow
-
-# 3. Review only those
-/visual-review
-
-# 4. If issues remain, annotate + fix
-/visual-fix
-
-# 5. Stop server when done
-/visual-review-stop
-```
-
-No need to re-discover. No need to re-run everything. The plugin knows what changed.
 
 ---
 
@@ -270,30 +151,16 @@ Tested on a production app with **112 routes, 16 services, and 6 authentication 
 
 ---
 
-## Install
-
-Tell Claude:
-
-> Install the skills from github.com/bacoco/agentic-visual-debugger
-
----
-
 ## Product Roadmap
 
-Want the concrete execution plan to make this project production-grade? Read the **[Product Readiness PRD](docs/PRD-product-readiness.md)**.
+Read the **[Product Readiness PRD](docs/PRD-product-readiness.md)**.
 
 ## Development
-
-Clone and install skills locally:
 
 ```bash
 git clone https://github.com/bacoco/agentic-visual-debugger.git
 cp -r plugins/e2e-agent-browser ~/.claude/plugins/
 ```
-
-No npm, no build step.
-
----
 
 ## Contributors
 
