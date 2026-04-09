@@ -60,17 +60,29 @@ Every page screenshotted. Every screenshot inspected. Failures flagged.
 
 ---
 
-## See a bug? Circle it.
+## See a bug? Point at it.
 
-`/visual-review` opens an interactive review page. Every test is a card. Click one to see the full screenshot.
+`/visual-review` opens a full-screen review page. 3D cards, dark theme, animated grid.
 
 ![Review page](docs/review-page.png)
 
-Spot a problem? Click the pen. Draw a rectangle around it. That's it — you just told the AI exactly where to look.
+Click any screenshot to open it full-screen. Then:
+
+- **Draw freely** on the image with the freehand pen (`F` key)
+- **Draw rectangles** around problem areas (`R` key)
+- **Add a note** describing what's wrong (popup after each annotation)
+- **Flag "Redo page"** if the whole screen is bad (`D` key) — no annotation needed
+- **Just select it** without any annotation — defaults to "improve this UI"
+- **Undo** any annotation (`Z` key)
+- **Navigate** between screenshots with arrows or keyboard left/right
 
 ![Circle the bug](docs/review-annotation.png)
 
-Select the tests you want fixed. Click **"Validate & Generate Report"**. This exports a fix manifest — the list of everything the AI needs to fix, with your annotations attached.
+Your annotations persist if you close the page (localStorage, 24h). Updated screenshots after a fix show first with a pulsing "UPDATED" badge.
+
+When a before/after pair exists, toggle between old and new versions. Don't like the fix? Click **Revert** to go back.
+
+Click **"Validate"** — the fix manifest is saved server-side. The page tells you the next step.
 
 ![Lightbox with details](docs/review-lightbox.png)
 
@@ -119,6 +131,21 @@ The plugin checks your `git diff`, finds the 3 impacted tests, runs those. 30 se
 | `/visual-review` | Open the visual review page |
 | `/visual-fix` | Fix everything you annotated, show before/after |
 | `/visual-review-stop` | Stop the review server |
+
+### Review page features
+
+| Feature | How |
+|---------|-----|
+| Freehand drawing | Pen tool or `F` key |
+| Rectangle selection | Box tool or `R` key |
+| Undo annotation | Button or `Z` key |
+| Flag "redo page" | Button or `D` key |
+| Select without annotation | Checkbox — defaults to "improve UI" |
+| Before/After comparison | Toggle in lightbox when fix exists |
+| Revert to previous version | Revert button in before/after panel |
+| Session persistence | Annotations saved in localStorage (24h) |
+| Updated screenshots first | Pulsing green badge, sorted to top |
+| Stability scoring | Pages fixed 3+ times flagged as "critical" |
 
 ---
 

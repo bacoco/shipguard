@@ -270,7 +270,10 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
       <p class="lb-desc" id="lb-desc"></p>
       <div id="lb-failure"></div>
       <div class="lb-section" id="lb-annot-section" style="display:none">
-        <div class="lb-section-title">Annotations</div>
+        <div class="lb-section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Annotations</span>
+          <button id="lb-annot-clear" style="background:none;border:1px solid var(--fail);color:var(--fail);font-size:11px;padding:2px 8px;border-radius:4px;cursor:pointer">Clear all</button>
+        </div>
         <div class="annot-list" id="lb-annot-list"></div>
       </div>
       <div class="lb-section" id="lb-steps-section">
@@ -451,7 +454,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
   // ── Selection ──
   function toggleSelect(id) {
     if(selected[id]){
-      delete selected[id]; selectedCount--;
+      delete selected[id]; selectedCount=Math.max(0,selectedCount-1);
       // Also remove annotations when deselecting (undo everything)
       delete annotationData[id];
       delete redoFlags[id];
@@ -494,7 +497,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       annotationData[currentTestId].pop();
       if (!annotationData[currentTestId].length) delete annotationData[currentTestId];
       redraw(); renderAnnotList();
-      if (!annotationData[currentTestId]) { if(selected[currentTestId]){delete selected[currentTestId];selectedCount--;updateBar();} }
+      if (!annotationData[currentTestId]) { if(selected[currentTestId]){delete selected[currentTestId];selectedCount=Math.max(0,selectedCount-1);updateBar();} }
       renderGrid();
     });
 
@@ -561,6 +564,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       if (annot) {
         // Ask for note
         pendingAnnot = annot;
+        editingIndex = null;
         showNoteInput();
       } else {
         redraw();
@@ -612,7 +616,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       if (!currentTestId) return;
       if (redoFlags[currentTestId]) {
         delete redoFlags[currentTestId];
-        if (!annotationData[currentTestId] && selected[currentTestId]) { delete selected[currentTestId]; selectedCount--; updateBar(); }
+        if (!annotationData[currentTestId] && selected[currentTestId]) { delete selected[currentTestId]; selectedCount=Math.max(0,selectedCount-1); updateBar(); }
         showToast('Redo flag removed');
       } else {
         redoFlags[currentTestId] = true;
@@ -637,8 +641,8 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
         canvas.height = img.clientHeight || 500;
         redraw();
       }
-      if (img.complete && img.naturalWidth) sizeCanvas();
-      else img.addEventListener('load', sizeCanvas, {once:true});
+      if (img.complete && img.naturalWidth) requestAnimationFrame(sizeCanvas);
+      else img.addEventListener('load', function(){ requestAnimationFrame(sizeCanvas); }, {once:true});
       renderAnnotList();
     };
     window._annotRedraw = redraw;
@@ -647,20 +651,32 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
 
   // ── Note input ──
   var pendingAnnot = null;
-  function showNoteInput() {
+  var editingIndex = null; // null = new annotation; number = editing existing
+  function showNoteInput(prefill) {
     document.getElementById('note-overlay').classList.add('visible');
     var input = document.getElementById('note-input');
-    input.value = '';
+    input.value = prefill || '';
     input.focus();
   }
   function saveAnnotation(note) {
+    document.getElementById('note-overlay').classList.remove('visible');
+    if (editingIndex !== null) {
+      // Update existing annotation
+      if (currentTestId && annotationData[currentTestId] && annotationData[currentTestId][editingIndex] !== undefined) {
+        annotationData[currentTestId][editingIndex].note = note || '';
+      }
+      editingIndex = null;
+      if (window._annotRedraw) window._annotRedraw();
+      renderAnnotList();
+      renderGrid();
+      return;
+    }
     if (!pendingAnnot || !currentTestId) return;
     pendingAnnot.note = note || '';
     if (!annotationData[currentTestId]) annotationData[currentTestId] = [];
     annotationData[currentTestId].push(pendingAnnot);
     if (!selected[currentTestId]) { selected[currentTestId]=true; selectedCount++; updateBar(); }
     pendingAnnot = null;
-    document.getElementById('note-overlay').classList.remove('visible');
     if (window._annotRedraw) window._annotRedraw();
     renderAnnotList();
     renderGrid();
@@ -696,10 +712,12 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       text.appendChild(region);
       item.appendChild(text);
       var edit = document.createElement('button'); edit.className='annot-item-edit'; edit.textContent='Edit';
-      edit.addEventListener('click', function() {
-        var newNote = prompt('Edit annotation note:', a.note||'');
-        if (newNote !== null) { a.note = newNote; renderAnnotList(); }
-      });
+      (function(idx) {
+        edit.addEventListener('click', function() {
+          editingIndex = idx;
+          showNoteInput(annotationData[currentTestId][idx].note || '');
+        });
+      })(i);
       item.appendChild(edit);
       var del = document.createElement('button'); del.className='annot-item-del'; del.textContent='\u2715';
       del.addEventListener('click', function() {
@@ -715,6 +733,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
 
   // ── Lightbox ──
   var currentLbIndex = -1;
+  var baViewMode = 'after'; // persists across navigation
   function getLbList() { return getFiltered().filter(function(t){return t.screenshot;}); }
 
   function openLightbox(id) {
@@ -746,12 +765,20 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       var d=document.createElement('span');d.className='lb-step-detail';d.textContent=s.description||s.criteria||s.target||s.url||s.value||'';step.appendChild(d);
       stepsEl.appendChild(step);
     });
-    // Before/After toggle
+    // Before/After toggle — use persisted baViewMode
     var baSection = document.getElementById('lb-ba');
     if (t.screenshotBefore) {
       baSection.style.display = 'flex';
-      document.getElementById('lb-ba-after').classList.add('active');
-      document.getElementById('lb-ba-before').classList.remove('active');
+      var showBefore = baViewMode === 'before' && t.screenshotBefore;
+      if (showBefore) {
+        img.src = t.screenshotBefore;
+        document.getElementById('lb-ba-before').classList.add('active');
+        document.getElementById('lb-ba-after').classList.remove('active');
+      } else {
+        if (t.screenshot) img.src = t.screenshot;
+        document.getElementById('lb-ba-after').classList.add('active');
+        document.getElementById('lb-ba-before').classList.remove('active');
+      }
       document.getElementById('lb-ba-revert').classList.toggle('active', !!revertFlags[t.id]);
     } else {
       baSection.style.display = 'none';
@@ -764,11 +791,13 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
   // Before/After buttons
   document.getElementById('lb-ba-after').addEventListener('click', function() {
     var list = getLbList(); var t = list[currentLbIndex]; if(!t) return;
+    baViewMode = 'after';
     document.getElementById('lb-img').src = t.screenshot;
     this.classList.add('active'); document.getElementById('lb-ba-before').classList.remove('active');
   });
   document.getElementById('lb-ba-before').addEventListener('click', function() {
     var list = getLbList(); var t = list[currentLbIndex]; if(!t||!t.screenshotBefore) return;
+    baViewMode = 'before';
     document.getElementById('lb-img').src = t.screenshotBefore;
     this.classList.add('active'); document.getElementById('lb-ba-after').classList.remove('active');
   });
@@ -802,7 +831,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
   // ── Keyboard ──
   document.addEventListener('keydown', function(e) {
     if (e.key==='Escape') {
-      if (document.getElementById('note-overlay').classList.contains('visible')) { document.getElementById('note-overlay').classList.remove('visible'); pendingAnnot=null; if(window._annotRedraw) window._annotRedraw(); }
+      if (document.getElementById('note-overlay').classList.contains('visible')) { saveAnnotation(''); }
       else if (document.getElementById('lightbox').classList.contains('visible')) closeLightbox();
       else if (selectedCount>0) { selected={};selectedCount=0;renderGrid();updateBar(); }
     }
@@ -886,6 +915,10 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
     if (document.getElementById('note-overlay').classList.contains('visible')) return;
     if (e.key === 'ArrowLeft') { e.preventDefault(); navLightbox(-1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); navLightbox(1); }
+    else if (e.key === 'f') { e.preventDefault(); document.getElementById('pen-freehand').click(); }
+    else if (e.key === 'r') { e.preventDefault(); document.getElementById('pen-rect').click(); }
+    else if (e.key === 'z') { e.preventDefault(); document.getElementById('pen-undo').click(); }
+    else if (e.key === 'd') { e.preventDefault(); document.getElementById('pen-redo').click(); }
   });
 
   // ── localStorage persistence ──
@@ -918,21 +951,35 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
   // Auto-save on changes
   var _origUpdateBar = updateBar;
   updateBar = function() { _origUpdateBar(); saveSession(); };
-  // Show restore banner if session exists
-  if (loadSession() && selectedCount > 0) {
-    // Session restored silently — re-render
-    renderGrid(); updateBar();
-    showToast('Session restored (' + selectedCount + ' selections)');
-  }
-  // Also show banner for explicit restore on fresh page
+  // Show restore banner if session exists — don't auto-restore, wait for click
+  (function() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && Object.keys(s.selected||{}).length > 0 && Date.now() - s.savedAt <= 86400000) {
+          document.getElementById('session-banner').classList.add('visible');
+        }
+      }
+    } catch(e) {}
+  })();
   document.getElementById('session-banner').addEventListener('click', function() {
-    if (loadSession()) { renderGrid(); updateBar(); }
+    if (loadSession()) { renderGrid(); updateBar(); showToast('Session restored (' + selectedCount + ' selections)'); }
     this.classList.remove('visible');
   });
   // Save before unload
   window.addEventListener('beforeunload', saveSession);
   // Clear session after successful validate
   var _origValidateSuccess = null; // handled in validate click
+
+  // ── Clear all annotations for current test ──
+  document.getElementById('lb-annot-clear').addEventListener('click', function() {
+    if (!currentTestId) return;
+    delete annotationData[currentTestId];
+    if (window._annotRedraw) window._annotRedraw();
+    renderAnnotList();
+    renderGrid();
+  });
 
   // ── Init ──
   renderStats(); renderFilters(); renderSidebar(); renderGrid(); initAnnotation();

@@ -14,6 +14,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from 'fs';
 import { join, relative, basename, dirname } from 'path';
+import { execFileSync } from 'child_process';
 
 // Minimal YAML parser — handles flat keys, arrays, nested objects used in test manifests.
 // No external dependency needed.
@@ -22,7 +23,7 @@ function yamlParse(text) {
   let currentKey = null;
   let currentArray = null;
   let currentObj = null;
-  let inSteps = false;
+  let inArray = false;   // true when current top-level key holds an array
 
   for (const rawLine of text.split('\n')) {
     const line = rawLine.replace(/\r$/, '');
@@ -31,60 +32,86 @@ function yamlParse(text) {
     // Top-level key: value
     const kvMatch = line.match(/^([a-z_][a-z0-9_-]*):\s*(.*)$/i);
     if (kvMatch && !line.startsWith(' ') && !line.startsWith('\t')) {
-      inSteps = false;
+      inArray = false;
       currentArray = null;
       currentObj = null;
       const [, key, rawVal] = kvMatch;
       const val = rawVal.replace(/^["']|["']$/g, '').trim();
 
-      if (key === 'steps') {
-        inSteps = true;
-        result.steps = [];
-        continue;
-      }
       if (key === 'tags' && val.startsWith('[')) {
         result[key] = val.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+        currentKey = key;
         continue;
       }
       if (val === '' || val === '|' || val === '>') {
+        // Empty value — could be an array or a nested object; decide on next line
         currentKey = key;
-        result[key] = {};
+        result[key] = null; // placeholder; will be set to [] or {} on first child line
         continue;
       }
-      if (val === 'true') { result[key] = true; continue; }
-      if (val === 'false') { result[key] = false; continue; }
-      if (/^\d+$/.test(val)) { result[key] = parseInt(val); continue; }
+      if (val === 'true') { result[key] = true; currentKey = key; continue; }
+      if (val === 'false') { result[key] = false; currentKey = key; continue; }
+      if (/^\d+$/.test(val)) { result[key] = parseInt(val); currentKey = key; continue; }
       result[key] = val;
       currentKey = key;
       continue;
     }
 
-    // Steps array items
-    if (inSteps) {
-      const stepItemMatch = line.match(/^\s+-\s+action:\s*(.+)/);
-      if (stepItemMatch) {
-        currentObj = { action: stepItemMatch[1].trim().replace(/^["']|["']$/g, '') };
-        result.steps.push(currentObj);
+    // Indented line under currentKey
+    if (currentKey !== null) {
+      // Array item: line starts with optional whitespace + "- "
+      const arrayItemMatch = line.match(/^(\s+)-\s+(.*)/);
+      if (arrayItemMatch) {
+        // First array item — promote placeholder to array if needed
+        if (!Array.isArray(result[currentKey])) {
+          result[currentKey] = [];
+          inArray = true;
+          currentArray = result[currentKey];
+        }
+        const rest = arrayItemMatch[2];
+        // Check if item leads with a key (e.g. "- action: foo" or "- test: bar")
+        const leadKeyMatch = rest.match(/^([a-z_][a-z0-9_-]*):\s*(.*)/i);
+        if (leadKeyMatch) {
+          const propVal = leadKeyMatch[2].replace(/^["']|["']$/g, '').trim();
+          currentObj = {};
+          currentObj[leadKeyMatch[1]] = propVal === '' ? null
+            : propVal === 'true' ? true
+            : propVal === 'false' ? false
+            : /^\d+$/.test(propVal) ? parseInt(propVal)
+            : propVal;
+          currentArray.push(currentObj);
+        } else {
+          // Plain scalar array item (e.g. "- foo")
+          const scalarVal = rest.replace(/^["']|["']$/g, '').trim();
+          currentArray.push(scalarVal);
+          currentObj = null;
+        }
         continue;
       }
-      if (currentObj) {
+
+      // Property of current array object
+      if (inArray && currentObj && typeof currentObj === 'object') {
         const propMatch = line.match(/^\s+([a-z_][a-z0-9_-]*):\s*(.+)/i);
         if (propMatch) {
           const val = propMatch[2].replace(/^["']|["']$/g, '').trim();
           if (val === 'true') currentObj[propMatch[1]] = true;
           else if (val === 'false') currentObj[propMatch[1]] = false;
+          else if (/^\d+$/.test(val)) currentObj[propMatch[1]] = parseInt(val);
           else currentObj[propMatch[1]] = val;
+          continue;
         }
       }
-      continue;
-    }
 
-    // Nested key under current top-level key (e.g., data:, credentials:)
-    if (currentKey && typeof result[currentKey] === 'object' && !Array.isArray(result[currentKey])) {
-      const nestedMatch = line.match(/^\s+([a-z_][a-z0-9_-]*):\s*(.+)/i);
-      if (nestedMatch) {
-        const val = nestedMatch[2].replace(/^["']|["']$/g, '').trim();
-        result[currentKey][nestedMatch[1]] = val;
+      // Nested key under current top-level key (e.g., data:, credentials:)
+      if (!inArray) {
+        if (result[currentKey] === null) result[currentKey] = {}; // promote placeholder
+        if (typeof result[currentKey] === 'object' && !Array.isArray(result[currentKey])) {
+          const nestedMatch = line.match(/^\s+([a-z_][a-z0-9_-]*):\s*(.+)/i);
+          if (nestedMatch) {
+            const val = nestedMatch[2].replace(/^["']|["']$/g, '').trim();
+            result[currentKey][nestedMatch[1]] = val;
+          }
+        }
       }
     }
   }
@@ -138,9 +165,12 @@ function parseRegressions() {
   if (!existsSync(REGRESSIONS_PATH)) return {};
   const data = yaml.load(readFileSync(REGRESSIONS_PATH, 'utf8'));
   const map = {};
-  const regs = Array.isArray(data?.regressions) ? data.regressions : [];
+  // Support both `regressions:` and `tests:` as the top-level array key
+  const regs = Array.isArray(data?.regressions) ? data.regressions
+              : Array.isArray(data?.tests)       ? data.tests
+              : [];
   for (const r of regs) {
-    if (r && r.test) map[r.test] = r.failure_reason || '';
+    if (r && r.test) map[r.test] = r;
   }
   return map;
 }
@@ -194,16 +224,11 @@ function buildEntry(id, category, manifest) {
     requiresAuth: manifest.requires_auth ?? true,
     featureFlag: manifest.feature_flag ? sanitize(manifest.feature_flag) : null,
     url: extractUrl(manifest.steps || []),
-    steps: (manifest.steps || []).map(s => ({
-      action: sanitize(s.action || ''),
-      description: sanitize(s.description || s.note || ''),
-      criteria: sanitize(s.criteria || ''),
-      target: sanitize(s.target || ''),
-      url: sanitize(s.url || ''),
-      value: sanitize(s.value || ''),
-      severity: sanitize(s.severity || ''),
-      screenshot: sanitize(s.screenshot || ''),
-    })),
+    steps: (manifest.steps || []).map(s => {
+      const step = {};
+      for (const k in s) { step[k] = sanitize(s[k]); }
+      return step;
+    }),
     screenshot: findScreenshot(id, slug, manifest.steps || []),
     screenshotBefore: findBeforeScreenshot(id, slug, manifest.steps || []),
     screenshotMtime: getScreenshotMtime(id, slug, manifest.steps || []),
@@ -264,9 +289,14 @@ function mergeStatus(tests, report, regressions) {
     } else if (report.statusMap[slug]) {
       t.status = report.statusMap[slug];
     }
-    if (regressions[t.id]) {
-      t.failureReason = sanitize(regressions[t.id]);
+    const reg = regressions[t.id] || regressions[slug];
+    if (reg) {
+      t.failureReason = sanitize(reg.failure_reason || '');
       if (t.status === 'STALE') t.status = 'FAIL';
+      // consecutive_passes === 0 means currently broken = at least 1 fix cycle attempted
+      if (typeof reg.consecutive_passes === 'number' && reg.consecutive_passes === 0) {
+        t.fixCycles = Math.max(1, t.fixCycles);
+      }
     }
   }
 }
@@ -321,8 +351,6 @@ writeFileSync(OUTPUT_PATH, html, 'utf8');
 console.log(`  Output: ${OUTPUT_PATH}`);
 
 // ── Generate thumbnails (macOS sips, no dependency) ──
-import { execFileSync } from 'child_process';
-
 const THUMBS_DIR = join(RESULTS_DIR, 'thumbs');
 if (!process.argv.includes('--stop')) {
   mkdirSync(THUMBS_DIR, { recursive: true });
@@ -384,8 +412,19 @@ if (process.argv.includes('--serve')) {
   const server = http.createServer((req, res) => {
     // POST /save-manifest — save fix manifest from review page
     if (req.method === 'POST' && req.url === '/save-manifest') {
+      const MAX_BODY = 5 * 1024 * 1024; // 5 MB
       let body = '';
-      req.on('data', chunk => body += chunk);
+      let bodySize = 0;
+      req.on('data', chunk => {
+        bodySize += chunk.length;
+        if (bodySize > MAX_BODY) {
+          req.destroy();
+          res.writeHead(413, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Payload too large (max 5 MB)' }));
+          return;
+        }
+        body += chunk;
+      });
       req.on('end', () => {
         try {
           const data = JSON.parse(body);
@@ -407,6 +446,8 @@ if (process.argv.includes('--serve')) {
     }
     const url = req.url === '/' ? '/review.html' : req.url;
     const filePath = join(RESULTS_DIR, url.replace(/^\//, ''));
+    // BUG-4: Prevent path traversal attacks
+    if (!filePath.startsWith(RESULTS_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
     if (!fExists(filePath)) { res.writeHead(404); res.end('Not found'); return; }
     const ext = extname(filePath);
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
