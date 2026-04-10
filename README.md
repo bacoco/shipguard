@@ -22,11 +22,47 @@ Restart Claude Code. The `/sg-*` commands are ready.
 
 ## The flow
 
+### Step 1 -- Find the bugs
+
 ```
-/sg-code-audit              # Find bugs in code
-/sg-visual-run --from-audit # Verify impacted routes visually
-/sg-visual-review           # See everything in one dashboard
+/sg-code-audit
 ```
+
+Parallel agents scan your codebase zone by zone. Each bug is classified by severity and category. Fixes are applied automatically in isolated git worktrees.
+
+![Code Audit — bugs found by severity](docs/screenshots/code-audit-bugs.png)
+
+### Step 2 -- Verify visually
+
+```
+/sg-visual-run --from-audit
+```
+
+The impacted routes from the audit are opened in a real browser. Each page is screenshotted and compared to expected behavior.
+
+![Visual Tests — screenshot grid with pass/fail](docs/screenshots/visual-tests-grid.png)
+
+### Step 3 -- Review everything in one dashboard
+
+```
+/sg-visual-review
+```
+
+One page, two tabs: Code Audit (bugs) + Visual Tests (screenshots). Filter by severity, category, status. Search. Export CSV.
+
+### Step 4 -- Annotate and fix
+
+Click any screenshot to open it full-screen. Use the pen tools to circle problems, draw rectangles, or flag a page for redo. Add notes describing what's wrong.
+
+![Lightbox with annotation tools — pen, rectangle, undo, redo page](docs/screenshots/annotation-tools.png)
+
+When you're done annotating, click **Validate & Generate Report**. Then run:
+
+```
+/sg-visual-fix
+```
+
+The AI reads your annotations, traces each problem to the source code, fixes it, and captures before/after screenshots to prove the fix.
 
 ---
 
@@ -60,26 +96,13 @@ Restart Claude Code. The `/sg-*` commands are ready.
 
 ## How it works
 
+Tests are YAML manifests that describe what the user sees -- not how the DOM is structured. When a CSS class changes, selector-based tests break. These don't.
+
 1. **Code audit** -- Parallel agents scan your codebase for bugs, grouped by severity
 2. **Route mapping** -- Impacted routes are identified from the audit results
 3. **Visual testing** -- Real browser sessions screenshot every impacted page
-4. **AI inspection** -- Each screenshot is analyzed for visual regressions
-5. **Fix loop** -- Annotate problems on screenshots, the AI traces them to source and fixes
-
-Tests are YAML manifests that describe what the user sees -- not how the DOM is structured. When a CSS class changes, selector-based tests break. These don't.
-
----
-
-## Screenshots
-
-### Code Audit Dashboard
-![Code Audit](docs/screenshots/hero.png)
-
-### Filtered by Severity
-![Filtered](docs/screenshots/code-audit-tab.png)
-
-### Visual Tests
-![Visual Tests](docs/screenshots/visual-tests-tab.png)
+4. **Human review** -- Annotate problems directly on screenshots with pen tools
+5. **AI fix** -- The AI reads annotations, traces to source code, fixes, and shows before/after
 
 ---
 
