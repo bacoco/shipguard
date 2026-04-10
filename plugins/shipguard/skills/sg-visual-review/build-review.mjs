@@ -159,6 +159,76 @@ const REGRESSIONS_PATH = join(ROOT, '_regressions.yaml');
 const CONFIG_PATH = join(ROOT, '_config.yaml');
 const OUTPUT_PATH = join(RESULTS_DIR, 'review.html');
 
+// ── Monitor state (in-memory, written to monitor-data.json on each update) ──
+const MONITOR_PATH = join(RESULTS_DIR, 'monitor-data.json');
+let monitorState = null;
+
+// Load previous monitor data from disk (survives server restart)
+function loadMonitorFromDisk() {
+  if (existsSync(MONITOR_PATH)) {
+    try { monitorState = JSON.parse(readFileSync(MONITOR_PATH, 'utf8')); }
+    catch { monitorState = null; }
+  }
+}
+loadMonitorFromDisk();
+
+function writeMonitorData() {
+  if (!monitorState) return;
+  mkdirSync(RESULTS_DIR, { recursive: true });
+  writeFileSync(MONITOR_PATH, JSON.stringify(monitorState, null, 2), 'utf8');
+}
+
+function recalcTotals() {
+  if (!monitorState) return;
+  const agents = monitorState.agents;
+  let tokens = 0, cost = 0, toolUses = 0, bugs = 0, files = 0;
+  for (const a of agents) {
+    tokens += a.tokens?.total || 0;
+    cost += a.estimated_cost_usd || 0;
+    toolUses += a.tool_uses || 0;
+    bugs += a.bugs_found || 0;
+    files += a.files_audited || 0;
+  }
+  const now = Date.now();
+  const startMs = new Date(monitorState.started_at).getTime();
+  monitorState.totals = {
+    tokens,
+    estimated_cost_usd: Math.round(cost * 100) / 100,
+    tool_uses: toolUses,
+    bugs_found: bugs,
+    files_audited: files,
+    wall_clock_ms: monitorState.ended_at
+      ? new Date(monitorState.ended_at).getTime() - startMs
+      : now - startMs,
+  };
+}
+
+function parseJsonBody(req, res, maxBytes) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let size = 0;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        req.destroy();
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Payload too large' }));
+        reject(null);
+        return;
+      }
+      body += chunk;
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(body)); }
+      catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON: ' + e.message }));
+        reject(null);
+      }
+    });
+  });
+}
+
 // ── Early exit: --stop just kills the server, no build needed ──
 const PID_FILE = join(RESULTS_DIR, '.server.pid');
 if (process.argv.includes('--stop')) {
