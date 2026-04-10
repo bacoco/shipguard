@@ -84,7 +84,7 @@ When you pass free text, the skill operates in **impact analysis mode**:
 
 When `--from-audit` is passed:
 
-1. Read `{results_dir}/audit-results.json` (canonical location: same directory as screenshots and manifests)
+1. Read `audit-results.json` from the results directory: check `visual-tests/_results/audit-results.json` first, then `{repo_root}/audit-results.json`, then `.code-audit-results/audit-results.json`. Fail with a clear message if not found.
 2. Extract `impacted_routes` array
 3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
 4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/visual-discover` separately to create manifests for new routes)
@@ -103,11 +103,12 @@ When `--from-audit` is passed:
 
 Collect manifests to run:
 
-1. **If natural language provided**: analyze intent, match manifests, generate missing ones
-2. **If `--regressions`**: only from `_regressions.yaml`, ordered by `last_failed` descending
-3. **If no arguments**: all manifests, regressions first, then by priority `high` → `medium` → `low`
-4. **Always skip** manifests with `deprecated: true`
-5. **Regressions among matched tests always run first**
+1. **If `--from-audit`**: follow the From-Audit Mode flow (see above) — read `audit-results.json`, extract `impacted_routes`, match YAML manifests by URL, order by severity (critical first)
+2. **If natural language provided**: analyze intent, match manifests, generate missing ones
+3. **If `--regressions`**: only from `_regressions.yaml`, ordered by `last_failed` descending
+4. **If no arguments**: all manifests, regressions first, then by priority `high` → `medium` → `low`
+5. **Always skip** manifests with `deprecated: true`
+6. **Regressions among matched tests always run first** (except in `--from-audit` mode, where severity order takes precedence)
 
 ## Execution Strategy
 

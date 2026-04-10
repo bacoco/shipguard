@@ -92,8 +92,9 @@ Scan repo root. For each detection rule, check file existence with Glob:
 Document the zone splitting algorithm:
 
 ```markdown
-1. Use Bash: `find . -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.go' -o -name '*.rs' -o -name '*.java' -o -name '*.kt' | sed 's|/[^/]*$||' | sort -u | uniq -c | sort -rn`
+1. Use Bash: `find . -name '*.py' -o -name '*.ts' -o -name '*.tsx' -o -name '*.go' -o -name '*.rs' -o -name '*.java' -o -name '*.kt' | sed 's|/[^/]*$||' | sort | uniq -c | sort -rn`
    This gives directory → file count.
+   NOTE: `sort` without `-u` so `uniq -c` counts actual files per directory. With `-u`, every count would be 1.
 
 2. Apply splitting rules:
    - dir with <= 30 files → 1 zone
@@ -162,11 +163,15 @@ As each agent completes (background notification):
 4. Track completed vs pending
 
 When all agents complete:
-1. If fix mode: merge each worktree branch into main
+1. **Prerequisite:** Verify working tree is clean (`git status --porcelain` must be empty). If not, abort merge phase and warn user: "Uncommitted changes detected — commit or stash before merging audit fixes."
+2. If fix mode: merge each worktree branch into main, one at a time:
    - `git merge {branch} --no-edit`
-   - On conflict: `git checkout --theirs {file} && git add {file}` for files in the agent's zone scope
-   - For conflicts outside zone scope: log for user attention
-2. Clean up worktrees and branches
+   - On conflict: **do NOT auto-resolve with `--theirs`**. Instead:
+     a. Log conflicting files and which zone produced them
+     b. Skip this branch's merge (`git merge --abort`)
+     c. Continue merging other branches
+     d. At the end, report all skipped merges to the user for manual resolution
+3. Clean up worktrees and branches
 ```
 
 - [ ] **Step 8: Write Phase 6 — Aggregate + Report**
@@ -176,10 +181,12 @@ When all agents complete:
 2. Merge into single audit-results.json:
    - Combine all bugs arrays
    - Compute summary (total, by_severity, by_category, files_audited, files_modified, duration)
-   - Derive impacted_routes: for each bug, map file path to likely route
-     - components/dashboard/* → /dashboard
-     - routes/dossier/* → /dossier
-     - Use framework-specific route mapping if detected
+   - Derive impacted_routes: for each bug, map file path to likely UI route using framework-specific detection:
+     - **Next.js App Router:** `app/**/page.tsx` → route path (e.g., `app/dashboard/page.tsx` → `/dashboard`)
+     - **Next.js Pages:** `pages/**/*.tsx` → route path
+     - **React Router:** grep `<Route path=` in source, map component file → route
+     - **Generic fallback:** extract directory name from bug file path, match against known route manifests
+     - Do NOT hardcode project-specific paths — detection must be generic
 3. Write audit-results.json to {results_dir}/
 4. Print summary table to terminal
 5. Suggest next steps:
@@ -296,7 +303,24 @@ Find what R1+R2 missed. Think like a security auditor + QA tester.
 - Volume mounts pointing to non-existent paths
 ```
 
-- [ ] **Step 5: Write Go, Rust, JVM checklists**
+- [ ] **Step 5: Write Next.js checklist**
+
+```markdown
+## Next.js Checklist
+
+- Server Component importing client-only module (useState, useEffect, browser APIs)
+- Client Component without `"use client"` directive at file top
+- `cookies()` / `headers()` called in a cached or static page (dynamic rendering required)
+- `searchParams` accessed synchronously in a Server Component (must be awaited in Next.js 15+)
+- Middleware that doesn't return `NextResponse.next()` on non-matching paths (blocks all routes)
+- `revalidatePath`/`revalidateTag` called from client code (server action or route handler only)
+- Dynamic `process.env[varName]` for `NEXT_PUBLIC_*` vars (must be static string for dead-code elimination)
+- Missing `loading.tsx` or `Suspense` boundary on slow Server Components (blocks entire page)
+- `fetch()` in Server Component without explicit `cache`/`revalidate` option (defaults vary by Next.js version)
+- Image `<img>` tag instead of `next/image` (missing optimization + CLS)
+```
+
+- [ ] **Step 6: Write Go, Rust, JVM checklists**
 
 ```markdown
 ## Go Checklist
@@ -324,7 +348,7 @@ Find what R1+R2 missed. Think like a security auditor + QA tester.
 - Hardcoded credentials or connection strings
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add plugins/agentic-visual-debugger/skills/code-audit/references/checklists.md
@@ -347,7 +371,11 @@ After the existing screenshot/manifest loading, add code to:
 
 - [ ] **Step 2: Inject audit data into the HTML template**
 
-Add a `{{AUDIT_DATA}}` placeholder replacement alongside the existing `{{CARDS_DATA}}`. If no audit data exists, inject `null`.
+Add audit data to the existing data object that gets injected via `__PLACEHOLDER_VISUAL_DATA__`. The build already does:
+```js
+const html = template.replace('"__PLACEHOLDER_VISUAL_DATA__"', JSON.stringify(data));
+```
+Add an `audit` field to the `data` object (set to `null` if no audit-results.json exists). The template will access it as `D.audit`. Do NOT create a separate placeholder — reuse the existing injection mechanism.
 
 - [ ] **Step 3: Commit**
 
@@ -363,19 +391,22 @@ git commit -m "feat: build-review reads audit-results.json for Code Audit tab"
 **Files:**
 - Modify: `plugins/agentic-visual-debugger/skills/visual-review/_review-template.html`
 
-- [ ] **Step 1: Add tab navigation in the header**
+> **SCOPE WARNING:** The template is a complex single-page app (~430 lines of JS) with its own sidebar, grid, lightbox, annotations, canvas drawing, session persistence, and action bar. Adding tabs requires wrapping the existing visual-tests UI and the new audit UI in switchable panels. This is NOT an append-only change — it touches the layout structure, filter system, and stats rendering. Read the full template before making changes.
 
-Add Visual Tests / Code Audit tab buttons after the existing header stats. The Code Audit tab button is hidden by default and shown only when audit data exists.
+- [ ] **Step 1: Add tab system to the header**
+
+In `#header`, after `.header-stats`, add tab buttons: "Visual Tests" (active by default) | "Code Audit" (hidden if `D.audit === null`). Tab switching must:
+- Toggle visibility of `#layout` (existing visual tests: sidebar + grid) vs `#audit-layout` (new audit panel)
+- Toggle visibility of `#toolbar` (visual tests filters) vs `#audit-toolbar` (audit filters)
+- Update `#stats` to show the active tab's stats
+- Keep the action bar (`#action-bar`) visible only on the Visual Tests tab
 
 - [ ] **Step 2: Add the audit panel HTML structure**
 
-After the existing `#grid` div, add an audit panel with:
-- Severity filter buttons
-- Category filter buttons  
-- Search input
-- Export CSV button
-- Stats bar
-- Grid container for bug cards
+Add new elements AFTER the existing `#layout` div (not inside it):
+- `#audit-toolbar` — severity buttons, category buttons, search input, export CSV button
+- `#audit-layout` — a `<main id="audit-grid">` for bug cards (no sidebar needed — filters are inline)
+- Both hidden by default (`style="display:none"`)
 
 - [ ] **Step 3: Add audit card CSS**
 
@@ -389,16 +420,19 @@ Style the bug cards with:
 
 - [ ] **Step 4: Add JavaScript for audit tab**
 
-Implement using safe DOM manipulation (textContent for user data, createElement for structure):
-- `switchTab(tab)` — toggle between visual and audit panels
-- `renderAuditStats()` — display summary badges
-- `renderAuditFilters()` — build severity + category filter buttons
-- `filterAuditSeverity(sev)` / `filterAuditCategory(cat)` — filter state
-- `applyAuditFilters()` — filter bugs by severity + category + search text
-- `renderAuditGrid(bugs)` — render bug cards with safe escaping (textContent, not raw string interpolation)
-- `exportAuditCSV()` — generate and download CSV blob
+The existing template uses `createElement` + `textContent` for safe DOM construction (no `innerHTML`, no `esc()` helper). Follow the same pattern.
 
-**Security note:** All audit data comes from local JSON files generated at build time. Use the existing `esc()` helper for any data rendered as HTML. Use textContent where possible for plain text content.
+Implement:
+- `switchTab(tab)` — toggle display of visual vs audit panels, update stats
+- `renderAuditStats()` — display summary badges (total bugs, by severity, fixed count)
+- `renderAuditFilters()` — build severity + category filter buttons dynamically
+- `filterAuditSeverity(sev)` / `filterAuditCategory(cat)` — filter state
+- `applyAuditFilters()` — filter bugs by severity + category + search text, re-render grid
+- `renderAuditGrid(bugs)` — render bug cards using `createElement`/`textContent` (NOT string interpolation)
+- `exportAuditCSV()` — generate and download CSV blob
+- Init: if `D.audit` exists, call `renderAuditStats()` and show the tab button; else hide tab completely
+
+**Non-regression requirement:** When `D.audit === null` (no audit was run), the page MUST behave exactly as before — no tab buttons, no extra UI, identical visual tests experience.
 
 - [ ] **Step 5: Commit**
 
@@ -429,12 +463,12 @@ In the invocations table, add:
 
 When `--from-audit` is passed:
 
-1. Read `{results_dir}/audit-results.json`
+1. Read `{results_dir}/audit-results.json` (canonical location: same directory as screenshots and manifests)
 2. Extract `impacted_routes` array
-3. For each route, find matching YAML manifests by URL path
-4. If no manifest matches a route, generate one using `/visual-discover --scope`
-5. Run matched + generated manifests (highest severity routes first)
-6. Report which code-audit findings were visually confirmed vs not reproduced
+3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
+4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/visual-discover` separately to create manifests for new routes)
+5. Run matched manifests (highest severity routes first)
+6. Report: which routes were visually verified, which had no manifest (uncovered), and which code-audit findings were visually confirmed vs not reproduced
 ```
 
 - [ ] **Step 3: Commit**
@@ -450,7 +484,10 @@ git commit -m "feat: add --from-audit flag to /visual-run for code→visual hand
 
 **Files:**
 - Modify: `plugins/agentic-visual-debugger/.claude-plugin/plugin.json`
-- Modify: `README.md`
+- Modify: `.claude-plugin/marketplace.json`
+- Modify: `plugins/agentic-visual-debugger/README.md`
+
+> **Rebrand decision:** The git repo stays `agentic-visual-debugger` (renaming repos breaks install URLs, forks, and open issues). Only the **display name** changes to "ShipGuard" in plugin.json, marketplace.json, and README. Skill file names stay unchanged (`visual-run`, `visual-review`, `visual-discover`, `code-audit`). No directory renames.
 
 - [ ] **Step 1: Update plugin.json**
 
@@ -467,7 +504,9 @@ git commit -m "feat: add --from-audit flag to /visual-run for code→visual hand
 
 - [ ] **Step 2: Update README.md**
 
-Add the code-audit section. Document the full ShipGuard flow:
+- Change title to "ShipGuard"
+- Add subtitle: "Formerly Agentic Visual Debugger"
+- Add the code-audit section. Document the full ShipGuard flow:
 
 ```
 /code-audit                    # Find bugs in code
@@ -476,6 +515,7 @@ Add the code-audit section. Document the full ShipGuard flow:
 ```
 
 Add the modes table (quick/standard/deep/paranoid).
+- Keep install instructions using the repo name `agentic-visual-debugger` (since the repo is not renamed)
 
 - [ ] **Step 3: Update marketplace.json**
 
@@ -489,7 +529,7 @@ Add the modes table (quick/standard/deep/paranoid).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/.claude-plugin/plugin.json README.md .claude-plugin/marketplace.json
+git add plugins/agentic-visual-debugger/.claude-plugin/plugin.json plugins/agentic-visual-debugger/README.md .claude-plugin/marketplace.json
 git commit -m "feat: rebrand to ShipGuard v2.0.0 + update README with /code-audit"
 ```
 
@@ -500,29 +540,41 @@ git commit -m "feat: rebrand to ShipGuard v2.0.0 + update README with /code-audi
 **Files:**
 - No files created — manual verification
 
-- [ ] **Step 1: Run /code-audit quick on a small test project**
+- [ ] **Step 1: Non-regression — /visual-review WITHOUT audit data**
+
+**Critical:** Before testing audit features, verify the existing visual-review still works perfectly without any `audit-results.json`:
+1. Delete or rename any existing `audit-results.json` in results dir
+2. Run `/visual-review`
+3. Verify: no tab buttons, no audit UI, identical behavior to before this work
+4. Screenshot grid, lightbox, annotations, filters, sidebar, action bar all work unchanged
+
+- [ ] **Step 2: Run /code-audit quick on a small test project**
 
 Find or create a small repo with known bugs (e.g., a Python file with `except: pass` and a TS file with `|| []`). Run `/code-audit quick` and verify:
-- Stack detection identifies Python + TypeScript
-- Zones are created correctly
+- Stack detection identifies Python + TypeScript + Next.js (if applicable)
+- Zones are created correctly (file counts > 1 per directory)
 - Agents dispatch and complete
 - JSON output matches schema
 - Bugs are found and fixed
+- Working tree check blocks merge if uncommitted changes exist
 
-- [ ] **Step 2: Run /visual-review and verify Code Audit tab**
+- [ ] **Step 3: Run /visual-review WITH audit data and verify Code Audit tab**
 
 After audit completes, run `/visual-review` and check:
-- Tab appears with bug count badge
+- Tab buttons appear (Visual Tests + Code Audit)
+- Default tab is Visual Tests — existing UI unchanged
+- Switching to Code Audit shows bug cards
 - Filters work (severity, category)
 - Search works
-- Cards display correctly
+- Cards display correctly (severity colors, badges, expandable)
 - CSV export works
+- Switching back to Visual Tests — all state preserved
 
-- [ ] **Step 3: Run /visual-run --from-audit**
+- [ ] **Step 4: Run /visual-run --from-audit**
 
-Verify that impacted routes from the audit are used to scope visual tests.
+Verify that impacted routes from the audit are used to scope visual tests. Check that uncovered routes (no matching manifest) are logged but don't block execution.
 
-- [ ] **Step 4: Commit any fixes from testing**
+- [ ] **Step 5: Commit any fixes from testing**
 
 ```bash
 git add -A

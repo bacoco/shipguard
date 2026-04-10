@@ -40,7 +40,11 @@ Parse the user's input into three values: **mode**, **focus**, and **fix_mode**.
 | `paranoid` | 20 | 3 | Surface + behavior + edge cases and security |
 
 5. Store these as working variables: `agent_count`, `round_count`, `focus_path`, `fix_mode`.
-6. Print to user: `Code audit: {mode} mode ({agent_count} agents, {round_count} round(s)){", focus: " + focus_path if set}{", report-only" if not fix_mode}`
+6. Determine `results_dir`:
+   - If `visual-tests/_results/` exists in the repo → use it (co-located with visual test results for `/visual-review` handoff)
+   - Otherwise → create `.code-audit-results/` at repo root and use it
+   - Store as `results_dir` (absolute path). All zone JSON files and the final `audit-results.json` go here.
+7. Print to user: `Code audit: {mode} mode ({agent_count} agents, {round_count} round(s)){", focus: " + focus_path if set}{", report-only" if not fix_mode}`
 
 ---
 
