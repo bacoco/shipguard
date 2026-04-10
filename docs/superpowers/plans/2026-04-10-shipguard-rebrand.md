@@ -399,7 +399,7 @@ Structure:
 git rm docs/PRD-product-readiness.md
 ```
 
-- [ ] **Step 3: Update code-audit spec refs**
+- [ ] **Step 3: Rewrite contradictory sections in code-audit spec**
 
 In `docs/specs/2026-04-10-code-audit-design.md`:
 - Replace "agentic-visual-debugger" → "shipguard"
@@ -407,14 +407,18 @@ In `docs/specs/2026-04-10-code-audit-design.md`:
 - Replace `/visual-review` → `/sg-visual-review`
 - Replace `/code-audit` → `/sg-code-audit`
 - Replace `bacoco/agentic-visual-debugger` → `bacoco/shipguard`
+- **REWRITE the "Repo Rename" section (line ~300):** The statement "Existing visual-* skills keep their names (no breaking change)" is now FALSE. Replace with: "All skills are prefixed with `sg-`: `sg-code-audit`, `sg-visual-run`, `sg-visual-review`, `sg-visual-discover`, `sg-visual-fix`, `sg-visual-review-stop`."
+- **REWRITE the install command:** `claude plugin add bacoco/shipguard` (not marketplace add)
 
-- [ ] **Step 4: Update plan refs**
+- [ ] **Step 4: Rewrite contradictory sections in code-audit plan**
 
 In `docs/superpowers/plans/2026-04-10-code-audit-skill.md`:
 - Replace `plugins/agentic-visual-debugger/` → `plugins/shipguard/`
 - Replace `/visual-run` → `/sg-visual-run`
 - Replace `/visual-review` → `/sg-visual-review`
 - Replace `/code-audit` → `/sg-code-audit`
+- **REWRITE the Task 6 rebrand decision note (line ~490):** The statement "The git repo stays agentic-visual-debugger... Skill file names stay unchanged... No directory renames." is now FALSE. Replace with: "Repo renamed to `bacoco/shipguard`. Plugin dir is `plugins/shipguard/`. All skills prefixed with `sg-`."
+- **Update all `git add` paths** that reference `plugins/agentic-visual-debugger/` → `plugins/shipguard/`
 
 - [ ] **Step 5: Commit**
 
@@ -444,9 +448,10 @@ Create temporary test fixtures in the sg-visual-review skill directory:
 - Run `build-review.mjs` to generate the HTML
 - Start the server with `--serve --port=8899`
 
-- [ ] **Step 2: Capture hero.png — Code Audit tab**
+- [ ] **Step 2: Create screenshots directory and capture hero.png — Code Audit tab**
 
 ```bash
+mkdir -p docs/screenshots
 agent-browser open http://localhost:8899
 # Click "Code Audit" tab
 agent-browser screenshot docs/screenshots/hero.png
@@ -494,7 +499,6 @@ git rm docs/hero.png docs/review-page.png docs/review-grid-full.png docs/review-
 - [ ] **Step 9: Commit**
 
 ```bash
-mkdir -p docs/screenshots
 git add docs/screenshots/
 git commit -m "docs: recapture screenshots for ShipGuard rebrand"
 ```
@@ -556,18 +560,22 @@ git push
 
 ```bash
 cd /Users/macstudio/agentic-visual-debugger
-grep -r "agentic-visual-debugger" --include="*.md" --include="*.json" --include="*.html" --include="*.mjs" --include="*.yaml" . | grep -v ".git/" | grep -v "node_modules"
+grep -r "agentic-visual-debugger" --include="*.md" --include="*.json" --include="*.html" --include="*.mjs" --include="*.yaml" . | grep -v ".git/" | grep -v "node_modules" | grep -v "shipguard-rebrand"
 ```
 
-Should return ZERO matches. If any remain, fix them.
+Should return ZERO matches. The `grep -v "shipguard-rebrand"` excludes the rebrand spec/plan files which intentionally mention the old name as historical context. Any OTHER matches must be fixed.
 
 - [ ] **Step 2: Grep for old skill names without sg- prefix**
 
 ```bash
-grep -r "\/visual-run\|\/visual-review\|\/visual-discover\|\/visual-fix\|\/code-audit" --include="*.md" --include="*.json" --include="*.html" . | grep -v ".git/" | grep -v "sg-"
+grep -rn "\/visual-run\|\/visual-review\|\/visual-discover\|\/visual-fix\|\/code-audit" --include="*.md" --include="*.json" --include="*.html" . | grep -v ".git/" | grep -v "shipguard-rebrand"
 ```
 
-Should return ZERO matches (all skill invocations should use `sg-` prefix now). Natural language triggers like "visual run" (without `/`) are acceptable.
+Review each match manually. Acceptable matches:
+- Lines that ALSO contain the `sg-` version (e.g. "renamed from /visual-run to /sg-visual-run")
+- Natural language triggers in skill descriptions (e.g. "visual run" without `/` prefix)
+
+Unacceptable matches: any `/visual-run`, `/visual-review`, etc. used as an invocation command without `sg-` prefix. Fix these.
 
 - [ ] **Step 3: Verify marketplace install**
 
