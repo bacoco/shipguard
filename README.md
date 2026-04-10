@@ -60,7 +60,7 @@ The impacted routes from the audit are opened in a real browser. Each page is sc
 /sg-visual-review
 ```
 
-One page, two tabs: Code Audit (bugs) + Visual Tests (screenshots). Filter by severity, category, status. Search. Export CSV.
+One page, three tabs: **Visual Tests** (screenshots), **Code Audit** (bugs), and **Monitor** (live Gantt timeline of agent progress, token usage, and estimated cost). Filter by severity, category, status. Search. Export CSV.
 
 ### Step 5 -- Annotate problems visually
 

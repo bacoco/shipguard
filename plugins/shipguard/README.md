@@ -97,10 +97,11 @@ Executes YAML test manifests using agent-browser. Hybrid execution: mechanical s
 
 Builds and serves an interactive HTML dashboard at `http://localhost:8888`.
 
-### Two tabs
+### Three tabs
 
 - **Visual Tests** -- screenshot grid from `/sg-visual-run` results. Filter by status (pass/fail) and category.
 - **Code Audit** -- bug cards from `audit-results.json`. Filter by severity, category, and free-text search. CSV export available.
+- **Monitor** -- live Gantt timeline of audit agent progress. Shows per-agent duration, token usage, estimated cost, and bugs found per zone. Appears automatically when an audit is running or `monitor-data.json` exists. Polls every 3s while the audit is in progress.
 
 ### Screenshot annotations
 
