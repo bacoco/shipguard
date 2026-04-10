@@ -14,8 +14,8 @@ Execute YAML test manifests using agent-browser (Playwright CLI). Hybrid executi
 | Command | Behavior |
 |---------|----------|
 | `/sg-visual-run` | **Interactive** — asks user what to do |
-| `/visual-run <natural language>` | Describe what to test — the skill figures out the rest |
-| `/visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
+| `/sg-visual-run <natural language>` | Describe what to test — the skill figures out the rest |
+| `/sg-visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
 
 ### Interactive Mode (no arguments)
 
@@ -35,7 +35,7 @@ If the user picks "Only regressions", read `_regressions.yaml` and run those tes
 
 If the user picks "Full suite", run everything.
 
-**This question is only asked when no argument is provided.** If the user types `/visual-run I fixed the chat`, skip the question and go straight to impact analysis.
+**This question is only asked when no argument is provided.** If the user types `/sg-visual-run I fixed the chat`, skip the question and go straight to impact analysis.
 
 ### Natural Language Mode (when text is provided)
 
@@ -61,7 +61,7 @@ When you pass free text, the skill operates in **impact analysis mode**:
    - Text mentions a file like "Header.tsx" → find which routes/components use it → match those manifests
 
 3. **Generate missing tests** — If the described scope has no existing test:
-   - Invoke `/sg-visual-discover` with a narrow scope on that area (e.g., `/visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
+   - Invoke `/sg-visual-discover` with a narrow scope on that area (e.g., `/sg-visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
    - Generate a new manifest with real steps and assertions
    - **Tag the manifest** with `auto_generated: true`, `generated_by: visual-run`, `generated_date: "{date}"` in the frontmatter
    - Save it to the test tree

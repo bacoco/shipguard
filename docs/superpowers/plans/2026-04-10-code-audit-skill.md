@@ -466,7 +466,7 @@ When `--from-audit` is passed:
 1. Read `{results_dir}/audit-results.json` (canonical location: same directory as screenshots and manifests)
 2. Extract `impacted_routes` array
 3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
-4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/visual-discover` separately to create manifests for new routes)
+4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/sg-visual-discover` separately to create manifests for new routes)
 5. Run matched manifests (highest severity routes first)
 6. Report: which routes were visually verified, which had no manifest (uncovered), and which code-audit findings were visually confirmed vs not reproduced
 ```
