@@ -2,7 +2,7 @@
 name: sg-code-audit
 description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /sg-visual-review. Trigger on "sg-code-audit", "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
 context: conversation
-argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only]"
+argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only] [--all] [--diff=ref]"
 ---
 
 # /sg-code-audit — Parallel Codebase Audit
@@ -20,17 +20,82 @@ Dispatch parallel AI agents to audit every file in your repo. Each agent reviews
 | `/sg-code-audit --focus=path/` | Restrict audit scope to a directory |
 | `/sg-code-audit --report-only` | Find bugs but do NOT fix them |
 | `/sg-code-audit deep --focus=src/ --report-only` | Combine flags freely |
+| `/sg-code-audit --diff=main` | Audit only files changed since `main` + their importers |
+| `/sg-code-audit --all` | Force full codebase audit (skip scope question) |
+| `/sg-code-audit quick --diff=feature-branch` | Combine mode with diff scope |
 
 ---
 
 ## Phase 1 — Parse Arguments
 
-Parse the user's input into three values: **mode**, **focus**, and **fix_mode**.
+Parse the user's input into four values: **mode**, **focus**, **fix_mode**, and **scope**.
 
 1. Extract the first positional argument (after the command name). Match against `quick`, `standard`, `deep`, `paranoid`. Default: `standard`.
 2. Extract `--focus=<path>` flag. If present, store the path. If not, scope is the entire repo.
 3. Check for `--report-only` flag. If present, set `fix_mode = false`. Default: `fix_mode = true`.
-4. Look up mode parameters:
+4. Parse scope flags:
+   - Check for `--all` flag. If present, set `scope_mode = "full"`.
+   - Check for `--diff=<ref>` flag. If present, set `scope_mode = "diff"` and `scope_ref = <ref>`.
+   - If BOTH `--all` and `--diff` are present: **error.** Print `Cannot use --all and --diff together.` and stop.
+   - If neither is present, set `scope_mode = "interactive"`.
+
+5. If `scope_mode == "interactive"`:
+   a. Detect base reference:
+      ```bash
+      current_branch=$(git rev-parse --abbrev-ref HEAD)
+      if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+        if git show-ref --verify --quiet refs/heads/main; then
+          base=$(git merge-base HEAD main)
+        elif git show-ref --verify --quiet refs/heads/master; then
+          base=$(git merge-base HEAD master)
+        else
+          base="HEAD~1"
+        fi
+      else
+        base="HEAD~1"
+      fi
+      ```
+   b. Run `git diff --name-only {base}` to get changed files.
+   c. If `focus_path` is set, filter the changed files to that subtree before asking the question. `--diff=<ref>` and `--focus=<path>` both apply.
+   d. If diff is NOT empty ({N} files changed), ask the user:
+      > "I detected {N} files changed since `{base}`. What scope?"
+      >
+      > 1. **Only what changed** — {N} files + their importers
+      > 2. **Full codebase** — everything
+      > 3. **Different base** — specify a branch or commit
+      >
+      > If the user picks 1 → set `scope_mode = "diff"` and `scope_ref = {base}`
+      > If the user picks 2 → set `scope_mode = "full"`
+      > If the user picks 3 → ask for ref, then set `scope_mode = "diff"` and `scope_ref = <user input>`
+   e. If diff IS empty (0 files), get the last commit with `git log --oneline -1` and ask:
+      > "No diff vs `{base}`. Audit the last commit `{sha}: {message}`?"
+      >
+      > 1. **Last commit** — {N} files changed
+      > 2. **Full codebase**
+      > 3. **Different base**
+      >
+      > If the user picks 1 → set `scope_mode = "diff"` and `scope_ref = "HEAD~1"`
+      > If the user picks 2 → set `scope_mode = "full"`
+      > If the user picks 3 → ask for ref
+
+6. If `scope_mode == "diff"`:
+   a. Get changed files: `git diff --name-only {scope_ref}` → store as `diff_files[]`
+   b. If `focus_path` is set, filter `diff_files[]` to that subtree before import expansion. `--diff=<ref>` and `--focus=<path>` both apply.
+   c. Filter out binary files (images, fonts, compiled assets). Keep only `*.py`, `*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.go`, `*.rs`, `*.java`, `*.kt`, `*.yaml`, `*.yml`, `Dockerfile*`.
+   d. For each changed source file, find direct importers (1 level):
+      ```bash
+      grep -rl "from.*['\"].*{relative_path_without_ext}" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" .
+      grep -rl "require(.*{relative_path_without_ext}" --include="*.js" --include="*.ts" .
+      ```
+      Use the relative path (for example `hooks/use-dossier`) not just the filename stem to reduce false matches. Deduplicate results.
+   e. Combine: `scope_files = diff_files + importer_files` (deduplicated)
+   f. If `importer_files` count > 3x `diff_files` count:
+      Warn the user: `{N} files modified. Import expansion found {M} importers (noisy). Run on modified files only, or include importers?`
+      If the user picks "modified only" → set `scope_files = diff_files`
+   g. Print: `{diff_count} files modified + {importer_count} importers = {total} files to audit`
+   h. Store `scope_files`, `diff_files`, and `importer_files` for zone discovery.
+
+7. Look up mode parameters:
 
 | Mode | Agents | Rounds | Description |
 |------|--------|--------|-------------|
@@ -39,12 +104,12 @@ Parse the user's input into three values: **mode**, **focus**, and **fix_mode**.
 | `deep` | 15 | 2 | Surface + runtime behavior analysis |
 | `paranoid` | 20 | 3 | Surface + behavior + edge cases and security |
 
-5. Store these as working variables: `agent_count`, `round_count`, `focus_path`, `fix_mode`.
-6. Determine `results_dir`:
+8. Store these as working variables: `agent_count`, `round_count`, `focus_path`, `fix_mode`, `scope_mode`, `scope_ref`, `scope_files`, `diff_files`, `importer_files`.
+9. Determine `results_dir`:
    - If `visual-tests/_results/` exists in the repo → use it (co-located with visual test results for `/sg-visual-review` handoff)
    - Otherwise → create `.code-audit-results/` at repo root and use it
    - Store as `results_dir` (absolute path). All zone JSON files and the final `audit-results.json` go here.
-7. Print to user: `Code audit: {mode} mode ({agent_count} agents, {round_count} round(s)){", focus: " + focus_path if set}{", report-only" if not fix_mode}`
+10. Print to user: `Code audit: {mode} mode ({agent_count} agents, {round_count} round(s)){", focus: " + focus_path if set}{", report-only" if not fix_mode}{", scope: diff vs " + scope_ref + " (" + total_in_scope + " files)" if scope_mode == "diff"}`
 
 ---
 
@@ -74,6 +139,23 @@ Print to user: `Detected: {detected_languages joined by ", "}. CLAUDE.md: {"foun
 ## Phase 3 — Discover Zones
 
 Split the codebase into non-overlapping zones, one per agent. Zones must not share files — each source file belongs to exactly one zone.
+
+**If `scope_mode == "diff"`:**
+
+Zone discovery operates on the `scope_files` list instead of the full repo. Since these files may be scattered across many directories, use a simplified zone strategy:
+
+1. Group `scope_files` by their parent directory (first 2 path segments, for example `src/routes/` or `apps/api-synthesia/`)
+2. Each group becomes a zone candidate
+3. If a group has <=30 files → 1 zone
+4. If a group has >30 files → split by subdirectory (same rules as full mode)
+5. Merge groups with <5 files into their nearest neighbor
+6. Cap to `agent_count` (same merge/split logic as full mode)
+
+Print: `Scoped zone discovery: {zone_count} zones from {file_count} files (diff mode)`
+
+**If `scope_mode == "full"`:**
+
+Use the existing directory-based algorithm below (unchanged).
 
 ### Step 1: Count files per directory
 
@@ -358,6 +440,14 @@ Merge all zone results into a single aggregated file:
   "mode": "<quick|standard|deep|paranoid>",
   "rounds": <round_count>,
   "agents": <actual agents dispatched including re-splits>,
+  "scope_info": {
+    "mode": "diff",
+    "base_ref": "main",
+    "base_sha": "<full SHA of base>",
+    "diff_files": 12,
+    "importer_files": 16,
+    "total_in_scope": 28
+  },
   "summary": {
     "total_bugs": <sum of all bugs across all zones and rounds>,
     "by_severity": {
@@ -393,6 +483,9 @@ Merge all zone results into a single aggregated file:
   "bugs": [<all bugs from all zones and rounds, combined into one array>]
 }
 ```
+
+When `scope_mode == "full"`: `"scope_info": {"mode": "full"}` — no other fields.
+When `scope_mode == "diff"`: include all fields above.
 
 ### Step 3: Derive impacted_routes
 
@@ -544,6 +637,14 @@ All bugs from all rounds are combined in the final `audit-results.json` bugs arr
   "mode": "standard",
   "rounds": 1,
   "agents": 10,
+  "scope_info": {
+    "mode": "diff",
+    "base_ref": "main",
+    "base_sha": "abc1234def5678",
+    "diff_files": 12,
+    "importer_files": 16,
+    "total_in_scope": 28
+  },
   "summary": {
     "total_bugs": 47,
     "by_severity": {"critical": 3, "high": 12, "medium": 22, "low": 10},
@@ -565,7 +666,7 @@ All bugs from all rounds are combined in the final `audit-results.json` bugs arr
 
 Before reporting completion to the user, verify:
 
-- [ ] Arguments parsed correctly (mode, focus, fix_mode)
+- [ ] Arguments parsed correctly (mode, focus, fix_mode, scope_mode)
 - [ ] Stack detected (at least one language found)
 - [ ] Zones discovered and assigned (no overlapping paths)
 - [ ] All agents dispatched and completed (or failed with logged errors)
@@ -573,7 +674,11 @@ Before reporting completion to the user, verify:
 - [ ] Working tree clean check performed before merge
 - [ ] Merge conflicts handled safely (abort + log, not auto-resolve)
 - [ ] All zone JSONs collected and valid
+- [ ] `--all` + `--diff` rejected explicitly
+- [ ] `--diff` + `--focus` documented and applied together
+- [ ] Diff mode import expansion uses relative paths and documents the noisy fallback
 - [ ] audit-results.json written with correct schema
+- [ ] `scope_info` included in audit-results.json
 - [ ] impacted_routes derived using generic detection (no hardcoded paths)
 - [ ] Summary printed to terminal
 - [ ] Next steps suggested (/sg-visual-run --from-audit, /sg-visual-review)

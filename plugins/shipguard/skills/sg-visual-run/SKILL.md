@@ -2,7 +2,7 @@
 name: sg-visual-run
 description: Execute Visual test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "sg-visual-run", "visual run", "run visual tests", "test regressions", "run tests", "visual-run", "check if the app works", "I changed X check it still works".
 context: conversation
-argument-hint: "[tests to run or natural language description]"
+argument-hint: "[tests to run or natural language description] [--all] [--diff=ref]"
 ---
 
 # /sg-visual-run — Execute Visual Tests
@@ -16,6 +16,18 @@ Execute YAML test manifests using agent-browser (Playwright CLI). Hybrid executi
 | `/sg-visual-run` | **Interactive** — asks user what to do |
 | `/sg-visual-run <natural language>` | Describe what to test — the skill figures out the rest |
 | `/sg-visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
+| `/sg-visual-run --diff=main` | Run tests for routes impacted by changes since `main` |
+| `/sg-visual-run --all` | Force full suite (skip scope question) |
+
+## Flag Parsing
+
+Before entering any mode, check for scope override flags:
+
+1. Check for `--all` flag. If present → run full suite and skip the interactive menu.
+2. Check for `--diff=<ref>` flag. If present → use that ref for "only what changed" logic and skip the interactive menu.
+3. If BOTH `--all` and `--diff` are present → error: `Cannot use --all and --diff together.`
+4. `--from-audit` takes priority over `--diff`: if both are present, `--from-audit` wins because it has its own scope from `audit-results.json`.
+5. If no scope flags are present → proceed to Interactive Mode or Natural Language Mode as before.
 
 ### Interactive Mode (no arguments)
 
@@ -24,12 +36,29 @@ When called without arguments, **ask the user** using AskUserQuestion:
 **Question:** "What do you want to test?"
 
 **Options:**
-1. **Only what changed** — Run tests impacted by code changes since last run (checks `git diff`)
+1. **Only what changed** — Run tests impacted by code changes since the detected base ref
 2. **Only regressions** — Re-run previously failed tests
 3. **Full suite** — Run all tests (takes ~40 min)
 4. *(Other — user types what they want)*
 
-If the user picks "Only what changed", check `git diff` to find modified files, map them to impacted test manifests, and run only those.
+If the user picks "Only what changed":
+
+1. Detect base reference (same algorithm as `sg-code-audit`):
+   ```bash
+   current_branch=$(git rev-parse --abbrev-ref HEAD)
+   if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+     base=$(git merge-base HEAD main || git merge-base HEAD master || echo "HEAD~1")
+   else
+     base="HEAD~1"
+   fi
+   ```
+2. Run `git diff --name-only {base}` → modified files list.
+3. If 0 files changed, ask: `No diff vs {base}. Use last commit?` and reuse the same last-commit / full-suite / different-base logic as `sg-code-audit`.
+4. Map modified files to routes using the same framework-specific route detection described in `sg-code-audit` Phase 6 Step 3.
+5. Match routes to YAML manifests (glob `visual-tests/**/*.yaml`, match the `url` field).
+6. If no manifest matches a route, log `uncovered route: {route}`.
+7. Include regressions from `_regressions.yaml` (always).
+8. Print: `Running {N} tests for {R} impacted routes (diff vs {base}) + {reg} regressions`
 
 If the user picks "Only regressions", read `_regressions.yaml` and run those tests.
 
@@ -84,6 +113,8 @@ When you pass free text, the skill operates in **impact analysis mode**:
 
 When `--from-audit` is passed:
 
+`--from-audit` overrides smart scope flags. If `--from-audit` and `--diff=<ref>` are both present, use `--from-audit`.
+
 1. Read `audit-results.json` from the results directory: check `visual-tests/_results/audit-results.json` first, then `{repo_root}/audit-results.json`, then `.code-audit-results/audit-results.json`. Fail with a clear message if not found.
 2. Extract `impacted_routes` array
 3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
@@ -103,12 +134,13 @@ When `--from-audit` is passed:
 
 Collect manifests to run:
 
-1. **If `--from-audit`**: follow the From-Audit Mode flow (see above) — read `audit-results.json`, extract `impacted_routes`, match YAML manifests by URL, order by severity (critical first)
-2. **If natural language provided**: analyze intent, match manifests, generate missing ones
-3. **If `--regressions`**: only from `_regressions.yaml`, ordered by `last_failed` descending
-4. **If no arguments**: all manifests, regressions first, then by priority `high` → `medium` → `low`
-5. **Always skip** manifests with `deprecated: true`
-6. **Regressions among matched tests always run first** (except in `--from-audit` mode, where severity order takes precedence)
+1. **If `--from-audit`**: follow the From-Audit Mode flow — read `audit-results.json`, extract `impacted_routes`, match YAML manifests by URL, order by severity (critical first)
+2. **If `--diff=<ref>` or the user picked "Only what changed"**: git diff → route detection → match manifests (see Interactive Mode above), then include regressions
+3. **If natural language provided**: analyze intent, match manifests, generate missing ones
+4. **If `--regressions`**: only from `_regressions.yaml`, ordered by `last_failed` descending
+5. **If `--all` or the user picked "Full suite"**: all manifests, regressions first, then by priority `high` → `medium` → `low`
+6. **Always skip** manifests with `deprecated: true`
+7. **Regressions among matched tests always run first** (except in `--from-audit` mode, where severity order takes precedence)
 
 ## Execution Strategy
 
