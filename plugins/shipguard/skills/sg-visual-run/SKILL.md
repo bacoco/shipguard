@@ -98,13 +98,13 @@ When you pass free text, the skill operates in **impact analysis mode**:
    - Text mentions a file like "Header.tsx" → find which routes/components use it → match those manifests
 
 3. **Generate missing tests** — If the described scope has no existing test:
-   - Invoke `/sg-visual-discover` with a narrow scope on that area (e.g., `/sg-visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
+   - Invoke `/sg-visual-discover` with a narrow scope on that area (e.g., `/sg-visual-discover --diff=HEAD~1`) to read the component, understand what it does, and produce a manifest skeleton
    - Generate a new manifest with real steps and assertions
    - **Tag the manifest** with `auto_generated: true`, `generated_by: visual-run`, `generated_date: "{date}"` in the frontmatter
    - Save it to the test tree
    - Then execute it
    - Auto-generated manifests are reported separately. After 3 consecutive passes, they are **automatically removed** (same rule as regressions in `_regressions.yaml`).
-   - Track auto-generated manifests in `_results/.auto-generated-manifests.json` (list of manifest paths). On cleanup, only remove manifests listed in this file.
+   - Track auto-generated manifests in `_results/.auto-generated-manifests.json` — schema: `[{"path": "...", "consecutive_passes": 0}]`. On cleanup, only remove manifests listed in this file.
 
 4. **Execute** — Run matched + generated tests (regressions among them first)
 
@@ -126,9 +126,9 @@ When `--from-audit` is passed:
 
 1. Read `audit-results.json` from the results directory: check `visual-tests/_results/audit-results.json` first, then `{repo_root}/audit-results.json`, then `.code-audit-results/audit-results.json`. Fail with a clear message if not found.
 2. Extract `impacted_routes` array
-3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
+3. For each route, find matching YAML manifests by comparing `impacted_route.route` against `manifest.steps[0].url` (the open step URL)
 4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/sg-visual-discover` separately to create manifests for new routes)
-5. Run matched manifests (highest severity routes first)
+5. Run matched manifests (highest `impacted_route.severity` routes first; use manifest `priority` as secondary sort key)
 6. Report: which routes were visually verified, which had no manifest (uncovered), and which code-audit findings were visually confirmed vs not reproduced
 
 ## Pre-flight
@@ -143,7 +143,7 @@ When `--from-audit` is passed:
 
 Collect manifests to run:
 
-1. **If `--from-audit`**: follow the From-Audit Mode flow — read `audit-results.json`, extract `impacted_routes`, match YAML manifests by URL, order by severity (critical first)
+1. **If `--from-audit`**: follow the From-Audit Mode flow — read `audit-results.json`, extract `impacted_routes`, match YAML manifests by comparing `impacted_route.route` against `manifest.steps[0].url`, order by `impacted_route.severity` (critical first; manifest `priority` as secondary sort key)
 2. **If `--diff=<ref>` or the user picked "Only what changed"**: git diff → route detection → match manifests (see Interactive Mode above), then include regressions
 3. **If natural language provided**: analyze intent, match manifests, generate missing ones
 4. **If `--regressions`**: only from `_regressions.yaml`, ordered by `last_failed` descending
@@ -197,6 +197,7 @@ Before executing, replace variables in all string fields:
 #### Include Resolution
 
 For `action: include`:
+- `path:` — relative path to the shared manifest YAML file (e.g., `_shared/login.yaml`)
 - Read the referenced file (relative to `visual-tests/`)
 - Inline its steps at the current position
 - Max depth: 3 levels. Circular references: detect and reject with error.
@@ -228,6 +229,7 @@ agent-browser press <key>
 ```
 
 **`upload`:**
+- `file:` — path to the file to upload (e.g., `data-sample/test.pdf`)
 1. `agent-browser snapshot` → find file input
 2. `agent-browser upload <ref> <file_path>`
 
@@ -244,7 +246,7 @@ sleep <duration_seconds>
 ```bash
 agent-browser get url
 ```
-Compare with `expected`. If mismatch: FAIL.
+Compare the current page URL path against the expected value. Full URLs and path-only values are both accepted — path-only values match against the URL pathname. If mismatch: FAIL.
 
 **`assert_text`:**
 1. `agent-browser snapshot`
@@ -294,6 +296,8 @@ After every `agent-browser screenshot <path>`:
 
 Poll with LLM evaluation until conditions are met or timeout:
 
+> **Field note:** In `llm-wait` and `llm-check`, the output file field is called `screenshot:` (the path to write the screenshot). In the standalone `screenshot` action, the same field is called `filename:`. Both refer to the output file path.
+
 ```
 loop every 3 seconds until timeout:
   1. agent-browser snapshot
@@ -311,7 +315,7 @@ Single-shot LLM evaluation:
 
 ```
 1. agent-browser snapshot (get accessibility tree text)
-2. agent-browser screenshot --full {screenshots_dir}/<filename>
+2. agent-browser screenshot --full {screenshots_dir}/<filename>  # field: screenshot:
 3. Read the screenshot with Read tool — MANDATORY, see Screenshot Validation
 4. LLM evaluates BOTH the snapshot text AND the visual screenshot against `criteria`
 5. If the screenshot shows ANY error → FAIL regardless of criteria
@@ -347,9 +351,10 @@ After all tests complete, update `visual-tests/_regressions.yaml`:
 
 ### Add/Update Failures
 
-For each test that FAILED:
+For each test that FAILED, STALE, or ERROR:
 - If already in regressions: update `last_failed`, `failure_reason`, reset `consecutive_passes: 0`
 - If new failure: add entry with `first_failed: today`, `consecutive_passes: 0`
+- STALE and ERROR tests are included with their corresponding `failure_reason` (e.g., "Element not found: {target}" for STALE, "Browser crash / agent-browser error" for ERROR)
 
 ### Track Passes
 
@@ -447,8 +452,10 @@ New tests generated:
 | `fill <ref> <text>` | Clear and fill input | `agent-browser fill @e10 "alex"` |
 | `upload <sel> <files>` | Upload file to input | `agent-browser upload "#file-input" ./test.md` |
 | `eval <js>` | Run JavaScript in page | `agent-browser eval 'document.querySelector("input").id'` |
-| `screenshot <path>` | Take screenshot | `agent-browser screenshot --full /tmp/capture.png` |
+| `screenshot <path>` | Take viewport screenshot | `agent-browser screenshot /tmp/capture.png` |
 | `screenshot --full <path>` | Take full-page screenshot | `agent-browser screenshot --full /tmp/capture.png` |
+| `wait <selector> [timeout]` | Wait for element to appear | `agent-browser wait "#result" 5000` |
+| `find <text>` | Find element by visible text | `agent-browser find "Submit"` |
 | `get url` | Get current URL | `agent-browser get url` |
 | `close` | Close browser | `agent-browser close` |
 

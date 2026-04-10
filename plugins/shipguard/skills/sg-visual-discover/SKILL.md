@@ -181,6 +181,7 @@ credentials:
 screenshots_dir: "visual-tests/_results/screenshots"
 report_path: "visual-tests/_results/report.md"
 agent_browser_path: "agent-browser"
+build_command: null              # set to rebuild command (e.g. "docker compose up -d --build frontend") or leave null if no rebuild needed
 ```
 
 If it already exists, do NOT overwrite.

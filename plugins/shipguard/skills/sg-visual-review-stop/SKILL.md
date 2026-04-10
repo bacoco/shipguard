@@ -19,7 +19,9 @@ If no PID file exists, report "No server running."
 If `--stop` exits with a non-zero code or the PID file contains an invalid PID, fall back to:
 
 ```bash
-lsof -ti:8888 | xargs kill 2>/dev/null
+# Read the port from _results/.server.pid if present, otherwise default to 8888
+port=$(grep -m1 'port' visual-tests/_results/.server.pid 2>/dev/null | awk '{print $2}' || echo 8888)
+lsof -ti:${port} | xargs kill 2>/dev/null
 ```
 
-Print a warning if fallback was needed: "Warning: --stop failed, used lsof fallback to kill process on port 8888."
+Print a warning if fallback was needed: "Warning: --stop failed, used lsof fallback to kill process on port {port}."

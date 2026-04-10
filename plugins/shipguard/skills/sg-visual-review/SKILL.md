@@ -34,7 +34,7 @@ node visual-tests/build-review.mjs --serve
 ```
 
 This script:
-1. Reads all YAML test manifests from `visual-tests/` (112+ files)
+1. Reads all YAML test manifests from `visual-tests/`
 2. Reads `visual-tests/_results/report.md` for PASS/FAIL status per test
 3. Reads `visual-tests/_regressions.yaml` for failure reasons
 4. Matches screenshots from `visual-tests/_results/screenshots/`
@@ -53,13 +53,22 @@ agent-browser open file://$(pwd)/visual-tests/_results/review.html
 
 The review page provides:
 
-**Grid View**
+**Visual Tests tab**
 - All tests displayed as cards with screenshot thumbnails
 - Color-coded badges: PASS (green), FAIL (red), STALE (yellow)
 - Priority badges (critical, high, medium, low)
 - Sidebar with category filters
 - Status filter bar (ALL / PASS / FAIL / STALE)
 - Search by test name
+
+**Code Audit tab**
+- Displays findings from `audit-results.json` if present in `_results/`
+- Lists impacted routes, severity levels, and audit recommendations
+- Used to cross-reference code issues with visual test failures
+
+**Monitor tab**
+- Appears only when `monitor-data.json` exists in `_results/`
+- Shows a Gantt timeline of the last audit run — per-step durations, parallelism, and bottlenecks
 
 **Lightbox**
 - Click any card to open full screenshot + test details
@@ -93,6 +102,13 @@ The review page provides:
   ]
 }
 ```
+
+**Validate & Generate Report workflow**
+1. Select one or more failed tests (checkbox overlay on cards)
+2. Optionally annotate each test with the pen tool to mark the problem area
+3. Click "Validate & Generate Report" in the floating action bar
+4. The page POSTs `fix-manifest.json` to the server via `POST /save-manifest`
+5. The saved manifest is then consumed by `/sg-visual-fix` to implement fixes
 
 ### Step 4: Re-run Failed/Annotated Tests
 

@@ -14,7 +14,7 @@ Take human-annotated screenshots from `/sg-visual-review`, analyze the marked pr
 ```
 Human annotates screenshots in review.html
   → clicks "Validate & Generate Report"
-  → downloads fix-manifest.json + validation-report.md
+  → fix-manifest.json is saved to the server via POST /save-manifest
   → runs /sg-visual-fix
     → AI reads each annotated screenshot
     → AI reads the annotation coordinates (problem region)
@@ -40,6 +40,12 @@ Human annotates screenshots in review.html
 Find the manifest file:
 - If argument provided: use that path
 - Otherwise: read `visual-tests/_results/fix-manifest.json` (saved by the review page server)
+
+The manifest `action` field determines how to process each test:
+
+- **`validate-and-fix`** — Read annotated screenshot, trace to source code, implement fix, rebuild, capture after screenshot.
+- **`redo_entirely`** — Re-run the test from scratch (re-execute all steps against the live app) and fix based on the fresh screenshot. Do not use the stored before-screenshot; re-capture now.
+- **`revert_to_before`** — Restore the before-screenshot version of affected files using `git checkout -- <file>` (revert code changes). Then re-run the test to confirm the revert worked.
 
 The manifest contains:
 ```json
@@ -93,15 +99,18 @@ Apply the minimal fix. Follow project rules:
 
 Read `build_command` from `visual-tests/_config.yaml`:
 
-- If `build_command` is set: execute it
-- If `build_command` is not set or null: ask the user how to rebuild, then proceed
+- If `build_command` is a non-null string: execute it
+- If `build_command: null`: no rebuild needed — proceed directly to re-run
+- If `build_command` is absent from config entirely: ask the user how to rebuild, then proceed
 
 ```bash
 # Examples of build_command values in _config.yaml:
 # build_command: "docker compose up -d --build frontend"
 # build_command: "npm run build"
-# build_command: null    # no rebuild needed (static site)
+# build_command: null    # no rebuild needed — skip rebuild step
 
+# {test_url} is derived from the test manifest's first open step:
+#   manifest.steps.find(s => s.action === 'open').url
 # {test-id} is the manifest path with slashes replaced by hyphens
 # e.g. "auth/login" becomes "auth-login", "dashboard/home" becomes "dashboard-home"
 
@@ -113,14 +122,20 @@ agent-browser screenshot --full visual-tests/_results/screenshots/{test-id}-afte
 
 #### 2e. Save before/after pair
 
-Copy the original screenshot:
+Copy the original screenshot (path is `visual-tests/_results/screenshots/{original-filename}.png` — do NOT add an extra `screenshots/` prefix):
 ```bash
-cp visual-tests/_results/screenshots/{original}.png visual-tests/_results/screenshots/{test-id}-before.png
+cp visual-tests/_results/screenshots/{original-filename}.png visual-tests/_results/screenshots/{test-id}-before.png
 ```
 
 ### Step 3: Generate Before/After Comparison
 
 Regenerate the review page with a "Comparison" tab:
+
+```bash
+node visual-tests/build-review.mjs
+```
+
+This rebuilds `review.html` without starting a new server. If the review server is not already running, start it separately:
 
 ```bash
 node visual-tests/build-review.mjs --serve
