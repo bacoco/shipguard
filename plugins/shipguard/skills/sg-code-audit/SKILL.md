@@ -32,13 +32,19 @@ Detect or start the review server for real-time audit monitoring. This is option
 
 ### Step 1: Check for existing server
 
+Before making any health check calls, determine `results_dir` early:
+- If `visual-tests/_results/` exists in the repo → preliminary `results_dir` = `visual-tests/_results/`
+- Otherwise → preliminary `results_dir` = `.code-audit-results/`
+
+Use this preliminary value to compare against health check responses below.
+
 ```bash
 curl -s --max-time 2 http://localhost:8888/health
 ```
 
-- **200 OK:** Parse the response JSON. Compare `results_dir` against the current project's `results_dir`.
+- **200 OK:** Parse the response JSON. Compare `results_dir` against the preliminary `results_dir` computed above.
   - If they match → set `monitor_active = true`, `monitor_url = "http://localhost:8888"`. Print: `Monitor: connected to existing server.`
-  - If they differ → another project's server is running. Try ports 8889, 8890 with `--port=` (same health check + results_dir comparison). If none match, treat as "not running" and pick the first free port for Step 2.
+  - If they differ → another project's server is running. Try ports 8889, 8890 with `--port=` (same health check + results_dir comparison). If none match, treat as "not running" and go to Step 2.
 - **Connection refused / timeout:** Server not running. Go to Step 2.
 
 ### Step 2: Ask user
@@ -64,7 +70,7 @@ If no matching server found:
      base_url: http://localhost:3000
      EOF
      ```
-  2. Pick port: use 8888 if free, otherwise the first free port found in Step 1.
+  2. Pick port: use 8888 if free. If 8888 is occupied by another project's server, try 8889 then 8890. Use the first port that either returns a matching `results_dir` or is not listening.
   3. Start server:
      ```bash
      node visual-tests/build-review.mjs --serve --port={port}
@@ -75,7 +81,7 @@ If no matching server found:
      ```
   5. If healthy → `monitor_active = true`, `monitor_url = "http://localhost:{port}"`. Print: `Monitor: server started at http://localhost:{port}`
   6. If not → `monitor_active = false`. Print: `Monitor: server failed to start — proceeding without monitoring.`
-- **non:** Set `monitor_active = false`.
+- **non:** Set `monitor_active = false`. Set `monitor_url = null`.
 
 ### Step 3: Store monitor state
 
@@ -152,6 +158,8 @@ Parse the user's input into four values: **mode**, **focus**, **fix_mode**, and 
    g. Print: `{diff_count} files modified + {importer_count} importers = {total} files to audit`
    h. Store `scope_files`, `diff_files`, and `importer_files` for zone discovery.
 
+   **Focus-path filtering:** Apply `focus_path` filtering once, immediately after collecting `scope_files` in this step (6b for diff scope, or at the start of Step 1 for full scope). Do not re-filter in Phase 3 or later steps.
+
 7. Look up mode parameters:
 
 | Mode | Agents | Rounds | Description |
@@ -205,7 +213,7 @@ Zone discovery operates on the `scope_files` list instead of the full repo. Sinc
 2. Each group becomes a zone candidate
 3. If a group has <=30 files → 1 zone
 4. If a group has >30 files → split by subdirectory (same rules as full mode)
-5. Merge groups with <5 files into their nearest neighbor
+5. Merge groups with <5 files into their nearest neighbor (the group whose path shares the longest common prefix). If no path prefix is shared, merge into the group with the fewest files.
 6. Cap to `agent_count` (same merge/split logic as full mode)
 
 Print: `Scoped zone discovery: {zone_count} zones from {file_count} files (diff mode)`
@@ -247,6 +255,7 @@ Any zone with fewer than 5 files gets merged into the nearest sibling zone (the 
 
 - If zone count > `agent_count`: merge the two smallest zones (by file count) repeatedly until zone count equals `agent_count`.
 - If zone count < `agent_count`: split the largest zone (by file count) into two halves (by subdirectory boundary) repeatedly until zone count equals `agent_count`.
+- **Overshoot guard:** If splitting a zone would produce more zones than `agent_count` (for example, a zone with many subdirectories), apply the merge step immediately after the split to bring the total back down to `agent_count`.
 
 ### Step 5: Store zones
 
@@ -261,6 +270,30 @@ Store the final zones as an array:
 ```
 
 Print to user: `Discovered {zone_count} zones ({total_file_count} files total). Dispatching {agent_count} agents.`
+
+---
+
+## Phase 3.5 — Monitor: Initialize
+
+This step runs **once**, after zones are known and **before** the round loop begins. It must NOT be repeated on subsequent rounds.
+
+If `monitor_active` is true:
+
+POST audit-start to seed all zone state on the monitor server:
+
+```
+POST {monitor_url}/api/monitor/audit-start
+Body: {"mode": "{mode}", "round_count": {round_count}, "agent_count": {agent_count},
+       "zones": [{zone objects with zone_id, paths, file_count}],
+       "scope_mode": "{scope_mode}", "scope_ref": "{scope_ref}",
+       "timestamp": "{ISO 8601 now}"}
+```
+
+If the POST fails, set `monitor_active = false` and continue silently.
+
+**Note on overflow children:** Re-split child zones are dynamically added to the monitor via `agent-update` with `status: started` (see Phase 5). The server creates new agent entries for unknown `agent_id`s automatically — no pre-registration is needed here.
+
+Do NOT re-POST audit-start on round 2 or round 3 — it resets all monitor state.
 
 ---
 
@@ -398,26 +431,15 @@ Store all dispatched agent handles for tracking.
 
 Print to user: `Round {round_number}: Dispatched {agent_count} agents. Waiting for completion...`
 
-### Monitor: report audit start + agent starts
+### Monitor: report agent starts
 
-If `monitor_active` is true:
+If `monitor_active` is true, after dispatching each agent (every round), POST agent-started:
 
-1. **Once before the round loop** (after Phase 3 zones are known, before the first Phase 4 iteration), POST audit-start. Do NOT re-post on subsequent rounds (deep/paranoid mode) — `audit-start` resets all state.
-   ```
-   POST {monitor_url}/api/monitor/audit-start
-   Body: {"mode": "{mode}", "round_count": {round_count}, "agent_count": {agent_count},
-          "zones": [{zone objects with zone_id, paths, file_count}],
-          "scope_mode": "{scope_mode}", "scope_ref": "{scope_ref}",
-          "timestamp": "{ISO 8601 now}"}
-   ```
-   If the POST fails, set `monitor_active = false` and continue silently.
-
-2. After dispatching each agent (every round), POST agent-started:
-   ```
-   POST {monitor_url}/api/monitor/agent-update
-   Body: {"agent_id": "r{round}:{zone_id}", "zone_id": "{zone_id}", "status": "started",
-          "round": {round}, "started_at": "{ISO 8601 now}"}
-   ```
+```
+POST {monitor_url}/api/monitor/agent-update
+Body: {"agent_id": "r{round}:{zone_id}", "zone_id": "{zone_id}", "status": "started",
+       "round": {round}, "started_at": "{ISO 8601 now}"}
+```
 
 ---
 
@@ -434,6 +456,7 @@ As each background agent completes, process its result.
      - Create two new zone objects with IDs `{zone.id}a` and `{zone.id}b`
      - Dispatch two new agents with the same prompt template but narrower scope
      - Track the new agents
+   - **Single-path zone edge case:** If the zone has only one path entry, split by listing the individual files under that path and dividing the file list in half alphabetically. If the zone has fewer than 3 files total, mark it as `failed` (too large for context — cannot split further) and skip it. Log: `Zone {zone.id} too small to re-split ({N} files) — skipping.`
    - Print to user: `Zone {zone.id} context overflow — re-splitting into {zone.id}a and {zone.id}b`
 3. **If the output indicates success:**
    - Read the zone JSON file from the agent's worktree path (returned in the agent result). The file is at `{worktree_path}/{results_dir_relative}/zone-{zone.id}-r{round_number}.json`.
@@ -655,7 +678,7 @@ Top categories:
   {category}: {count}
 
 Files audited: {count}
-Files modified: {count}
+Files modified: {count}{IF not fix_mode} (report-only mode){END IF}
 
 {IF skipped_merges exist}
 Merge conflicts (manual resolution required): {count} zones
@@ -695,6 +718,12 @@ for round_number in 1..round_count:
     4. Merge worktree branches if fix_mode (Phase 5)
     5. Store this round's results
     6. Print: "Round {round_number} complete: {N} bugs found, {M} fixed"
+    7. If round_number < round_count (more rounds remain):
+       - Run: git status --porcelain
+       - If the output is NOT empty (uncommitted changes or leftover merge artifacts):
+         commit or stash all changes before proceeding.
+         Print: "Working tree not clean between rounds — committing/stashing before round {round_number + 1}."
+       - Only then continue to the next round.
 
 After all rounds:
     7. Aggregate ALL rounds into a single audit-results.json (Phase 6)
@@ -704,13 +733,21 @@ After all rounds:
 ### Round-specific behavior
 
 - **Round 1:** Standard dispatch. Agents see only the round focus + language checklists.
-- **Round 2+:** Agents receive an additional context block:
-  ```
-  A previous audit round already found and fixed bugs. Your job:
-  1. Verify previously applied fixes are correct (check for regressions)
-  2. Find DEEPER issues the surface scan missed
-  3. Do NOT re-report bugs already found — focus on NEW findings
-  ```
+- **Round 2+:** Agents receive an additional context block. The wording depends on `fix_mode`:
+  - If `fix_mode` is true:
+    ```
+    A previous audit round already found and fixed bugs. Your job:
+    1. Verify previously applied fixes are correct (check for regressions)
+    2. Find DEEPER issues the surface scan missed
+    3. Do NOT re-report bugs already found — focus on NEW findings
+    ```
+  - If `fix_mode` is false (report-only mode):
+    ```
+    A previous audit round already found bugs (not fixed — report-only mode). Your job:
+    1. Verify previously found bugs are still present (no regressions from external changes)
+    2. Find DEEPER issues the surface scan missed
+    3. Do NOT re-report bugs already found — focus on NEW findings
+    ```
 - Each round uses a DIFFERENT focus and checklist from `references/checklists.md`:
   - Round 1 = R1 (Surface)
   - Round 2 = R2 (Depth)
