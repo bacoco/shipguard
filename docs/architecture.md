@@ -31,6 +31,8 @@ sg-visual-run --> screenshots/ + report.md --> sg-visual-review (Visual Tests ta
 sg-visual-review --> fix-manifest.json --> sg-visual-fix
 
 sg-visual-fix --> before/after screenshots --> sg-visual-review (updated comparison)
+
+sg-code-audit --> POST /api/monitor/* --> monitor-data.json --> Monitor tab (polling)
 ```
 
 The two entry points (`sg-code-audit` and `sg-visual-discover`) can run independently. `sg-visual-run --from-audit` bridges them by reading `audit-results.json` impacted routes and running matching visual tests. `sg-visual-review` merges both data sources into a single dashboard.

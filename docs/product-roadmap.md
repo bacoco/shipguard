@@ -13,7 +13,7 @@
 ### Core Capabilities
 - **Parallel agent dispatch with worktree isolation** -- each agent works in its own git worktree, no file conflicts
 - **Multi-round audit** -- R1 surface (lint-like patterns) / R2 depth (runtime behavior) / R3 edge cases (security, logic)
-- **Unified dashboard** -- Visual Tests tab (screenshots, annotations, lightbox) + Code Audit tab (bug cards, severity filters, CSV export)
+- **Unified dashboard** -- Visual Tests tab (screenshots, annotations, lightbox) + Code Audit tab (bug cards, severity filters, CSV export) + Monitor tab (live Gantt timeline of audit agents)
 - **Code-to-visual handoff** -- `sg-visual-run --from-audit` reads `impacted_routes` from audit results and runs only matching visual tests
 - **7 language checklists** -- Python, TypeScript/React, Next.js, Infrastructure, Go, Rust, JVM
 

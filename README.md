@@ -16,6 +16,12 @@ ShipGuard is a Claude Code plugin. Add it in one line:
 claude plugin add bacoco/shipguard
 ```
 
+**Requires:** `agent-browser` CLI
+
+```bash
+npm install -g agent-browser && agent-browser install --with-deps
+```
+
 Restart Claude Code. The `/sg-*` commands are ready.
 
 ---
