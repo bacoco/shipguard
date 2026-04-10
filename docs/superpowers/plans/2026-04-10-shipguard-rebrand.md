@@ -441,12 +441,21 @@ git commit -m "docs: rewrite product roadmap + update spec/plan refs for ShipGua
 
 - [ ] **Step 1: Set up test data for review page**
 
-Create temporary test fixtures in the sg-visual-review skill directory:
-- `_config.yaml` with base_url
-- A few test category directories with YAML manifests
-- A fake `audit-results.json` with 6+ bugs across severities
-- Run `build-review.mjs` to generate the HTML
-- Start the server with `--serve --port=8899`
+Create temporary test fixtures in `/tmp/sg-screenshot-fixtures/` (NOT in the repo tree — avoids accidental commit):
+
+```bash
+FIXTURES=/tmp/sg-screenshot-fixtures
+mkdir -p $FIXTURES/test-category $FIXTURES/_results/screenshots
+```
+
+- Write `_config.yaml` with base_url to `$FIXTURES/`
+- Write a test YAML manifest to `$FIXTURES/test-category/sample.yaml`
+- Write a fake `audit-results.json` with 6+ bugs across severities to `$FIXTURES/_results/`
+- Copy `build-review.mjs` and `_review-template.html` from the skill dir to `$FIXTURES/`
+- Run `node $FIXTURES/build-review.mjs` to generate the HTML
+- Start the server with `node $FIXTURES/build-review.mjs --serve --port=8899`
+
+This keeps all temporary data outside the git tree. Cleanup = `rm -rf /tmp/sg-screenshot-fixtures`.
 
 - [ ] **Step 2: Create screenshots directory and capture hero.png — Code Audit tab**
 
@@ -488,7 +497,14 @@ This is a terminal screenshot. Take a screenshot of terminal output showing `/sg
 
 - [ ] **Step 7: Clean up test fixtures**
 
-Stop the server, delete the temporary test fixtures (categories, config, results).
+```bash
+# Stop the server
+node $FIXTURES/build-review.mjs --stop 2>/dev/null || true
+# Delete temp dir entirely
+rm -rf /tmp/sg-screenshot-fixtures
+```
+
+Verify nothing leaked into the repo: `git status --porcelain` should show only `docs/screenshots/*.png` as new files, nothing else.
 
 - [ ] **Step 8: Delete old screenshots**
 
@@ -510,15 +526,16 @@ git commit -m "docs: recapture screenshots for ShipGuard rebrand"
 **Files:**
 - No file changes — git/GitHub operations only
 
-- [ ] **Step 1: Verify everything is committed and pushed**
+- [ ] **Step 1: Verify tree is clean and everything is pushed**
 
 ```bash
 cd /Users/macstudio/agentic-visual-debugger
-git status
+# Hard check: if anything is uncommitted, STOP
+if [ -n "$(git status --porcelain)" ]; then echo "ERROR: uncommitted changes — commit or stash before renaming"; git status --short; exit 1; fi
 git push
 ```
 
-All changes from Tasks 1-8 must be pushed before renaming.
+All changes from Tasks 1-8 must be committed AND pushed before renaming. Do NOT proceed with `gh repo rename` if the porcelain check fails.
 
 - [ ] **Step 2: Rename the repo**
 
@@ -577,11 +594,13 @@ Review each match manually. Acceptable matches:
 
 Unacceptable matches: any `/visual-run`, `/visual-review`, etc. used as an invocation command without `sg-` prefix. Fix these.
 
-- [ ] **Step 3: Verify marketplace install**
+- [ ] **Step 3: Verify install**
+
+The canonical install command is `claude install-plugin bacoco/shipguard`. The exact CLI syntax depends on the Claude Code version — check `claude --help` for the right subcommand. The test here is that the plugin resolves and lists skills correctly, not the specific CLI syntax.
 
 ```bash
-# From another directory, test install
-claude plugin add bacoco/shipguard
+# Verify the repo is reachable and plugin.json is valid
+gh repo view bacoco/shipguard --json name --jq '.name'
 ```
 
 Verify the plugin installs and skills are listed with `sg-` prefixed names.
