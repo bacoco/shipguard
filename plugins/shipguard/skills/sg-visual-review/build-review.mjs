@@ -15,6 +15,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync, mkdirSync } from 'fs';
 import { join, relative, basename, dirname, resolve, isAbsolute as pathIsAbsolute } from 'path';
 import { execFileSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
 // Minimal YAML parser — handles flat keys, arrays, nested objects, and multiline blocks.
 // No external dependency needed.
@@ -151,7 +152,7 @@ function yamlParse(text) {
 
 const yaml = { load: yamlParse };
 
-const ROOT = dirname(new URL(import.meta.url).pathname);
+const ROOT = dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = join(ROOT, '_results');
 const SCREENSHOTS_DIR = join(RESULTS_DIR, 'screenshots');
 const REPORT_PATH = join(RESULTS_DIR, 'report.md');
