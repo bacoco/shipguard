@@ -31,7 +31,13 @@ Before scanning the project, determine scope:
       ```bash
       current_branch=$(git rev-parse --abbrev-ref HEAD)
       if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
-        base=$(git merge-base HEAD main || git merge-base HEAD master || echo "HEAD~1")
+        if git show-ref --verify --quiet refs/heads/main; then
+          base=$(git merge-base HEAD main)
+        elif git show-ref --verify --quiet refs/heads/master; then
+          base=$(git merge-base HEAD master)
+        else
+          base="HEAD~1"
+        fi
       else
         base="HEAD~1"
       fi

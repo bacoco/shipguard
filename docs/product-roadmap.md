@@ -32,14 +32,14 @@
 - **Zone discovery uses file count heuristic, not AST** -- directories are split by file count thresholds (<=30, 31-80, 80+), not by analyzing code structure
 - **Route detection is best-effort** -- impacted routes are derived from file paths using framework-specific patterns (Next.js App Router, Pages Router, React Router), with a generic fallback for unrecognized frameworks
 - **No CI/CD integration yet** -- audits run interactively via Claude Code skills, no GitHub Actions workflow
-- **No diff-mode** -- audits scan the full codebase (or `--focus` scope), cannot yet audit only git-changed files
+- ~~No diff-mode~~ **Shipped in v2.0.0** -- `--diff=<ref>` scopes all 3 skills to git-changed files + importers
 
 ---
 
 ## Roadmap
 
-### Diff-mode: audit only git-changed files
-Scope the audit to files changed since a base branch (`--diff=main`). Reduces agent count and token cost for incremental reviews.
+### ~~Diff-mode~~ — SHIPPED
+Smart scope (`--diff=<ref>`, `--all`) shipped in v2.0.0 across sg-code-audit, sg-visual-run, and sg-visual-discover.
 
 ### CI integration: GitHub Actions workflow
 A reusable workflow that runs `sg-code-audit` on PRs and posts a summary comment with severity counts and impacted routes.
