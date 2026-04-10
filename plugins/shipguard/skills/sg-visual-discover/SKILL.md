@@ -2,12 +2,55 @@
 name: sg-visual-discover
 description: Explore a web project's codebase to discover testable user journeys, then generate YAML test manifests mirroring the UI navigation tree. Use when setting up Visual tests for a new project, or after structural UI changes (new routes, removed pages, navigation updates). Trigger on "sg-visual-discover", "visual discover", "generate visual tests", "discover test routes", "update test manifests", "scan UI for tests".
 context: conversation
-argument-hint: "[project-path]"
+argument-hint: "[project-path] [--all] [--diff=ref] [--refresh-existing]"
 ---
 
 # /sg-visual-discover — Discover & Generate Visual Test Manifests
 
 Explore the codebase of any web application, detect all user-facing routes and interactions, and generate a YAML test manifest tree that mirrors the UI navigation structure.
+
+## Invocations
+
+| Command | Behavior |
+|---------|----------|
+| `/sg-visual-discover` | **Interactive** — detect changes, ask scope |
+| `/sg-visual-discover <path>` | Discover routes in specific project path |
+| `/sg-visual-discover --diff=main` | Generate manifests only for routes impacted by changes since `main` |
+| `/sg-visual-discover --all` | Discover all routes (skip scope question) |
+| `/sg-visual-discover --refresh-existing` | In diff mode, also regenerate existing manifests for impacted routes |
+
+## Scope Detection
+
+Before scanning the project, determine scope:
+
+1. Check for `--all` flag → skip to Phase 1 with full scope.
+2. Check for `--diff=<ref>` flag → use that ref.
+3. If BOTH `--all` and `--diff` → error: `Cannot use --all and --diff together.`
+4. If neither flag:
+   a. Detect base reference:
+      ```bash
+      current_branch=$(git rev-parse --abbrev-ref HEAD)
+      if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+        base=$(git merge-base HEAD main || git merge-base HEAD master || echo "HEAD~1")
+      else
+        base="HEAD~1"
+      fi
+      ```
+   b. Run `git diff --name-only {base}` → changed files.
+   c. If changes detected, map to routes using the same generic route detection described in `sg-code-audit`.
+   d. Ask user:
+      > "I detected {N} files changed since `{base}`, impacting {R} routes. What scope?"
+      >
+      > 1. **Only impacted routes** — generate manifests for new routes only
+      > 2. **Full app** — discover all routes
+      > 3. **Different base**
+   e. If no changes detected, offer same fallback as sg-code-audit: last commit, full app, or different base.
+5. Store `scope_mode` ("diff" or "full") and `impacted_routes[]` for Phase 4.
+
+**Flag combination:** `/sg-visual-discover <project-path> --diff=<ref>`
+Both apply: discover within project-path, but only generate manifests for routes impacted by the diff. The diff is computed on the whole repo, but only routes within project-path are considered.
+
+**`--refresh-existing` only applies in diff mode.** In full discovery, existing manifests are still skipped by default.
 
 ## Prerequisites
 
@@ -189,8 +232,10 @@ visual-tests/
 
 For each route:
 
-1. **If a manifest already exists** → SKIP (never overwrite)
-2. **If the route is new** → Create a manifest
+1. **If `scope_mode == "diff"` AND route is NOT in `impacted_routes`** → SKIP (not impacted by changes)
+2. **If a manifest already exists AND `--refresh-existing` is NOT set** → SKIP (never overwrite without explicit flag)
+3. **If a manifest already exists AND `--refresh-existing` IS set** → REGENERATE (re-scan route components, overwrite manifest). Warn: `Refreshing {N} existing manifests.`
+4. **If no manifest exists** → CREATE new manifest
 
 **Skeleton manifest** (minimum viable test):
 ```yaml
@@ -221,6 +266,10 @@ If the page has forms, uploads, chat, etc., generate steps that exercise them:
 - Tables → `llm-check` "data is displayed, rows visible"
 
 Pre-fill `data:` section with discovered test files when relevant.
+
+Report:
+- `scope_mode == "diff"`: `Created {N} new manifests. Skipped {S} routes (manifests exist). {U} uncovered routes (no component match).`
+- `scope_mode == "full"`: `Created {N} new manifests. Skipped {S} routes (manifests exist). {D} routes deprecated.`
 
 ### 4.3 Deprecated Handling
 
