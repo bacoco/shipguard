@@ -1,3 +1,4 @@
+# Prerequisites: run documents/upload-and-process.yaml first to have a document available
 name: "Chat about uploaded document"
 description: "Ask a question about a previously uploaded document and verify the response is grounded"
 priority: high
@@ -16,6 +17,7 @@ steps:
     description: "Chat page loads with document context"
     criteria: "Chat interface is visible, document attachment or context indicator is present"
     severity: critical
+    screenshot: chat-document-check.png
 
   - action: fill
     target: "message"

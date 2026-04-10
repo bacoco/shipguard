@@ -1,2 +1,8 @@
 # Auto-maintained by /sg-visual-run — do not edit manually
 regressions: []
+
+# Example regression entry (auto-managed by sg-visual-run):
+# regressions:
+#   - test: auth/login
+#     failure_reason: "Login button not visible"
+#     consecutive_passes: 0

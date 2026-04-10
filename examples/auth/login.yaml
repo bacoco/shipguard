@@ -37,3 +37,9 @@ steps:
     criteria: "Dashboard is visible with navigation, user is logged in, no error messages"
     severity: critical
     screenshot: auth-dashboard.png
+
+  - action: llm-check
+    description: "No non-critical UI issues on dashboard"
+    criteria: "Layout is intact, no visual glitches or missing elements that would degrade usability"
+    severity: warning
+    screenshot: auth-dashboard-warning.png

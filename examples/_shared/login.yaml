@@ -1,3 +1,4 @@
+# Reusable login steps — include from other manifests via: action: include, path: _shared/login.yaml
 name: "Login"
 description: "Authenticate with dev credentials"
 
@@ -10,6 +11,7 @@ steps:
 
   - action: fill
     target: "Email"
+    # Note: credentials.username may be an email address depending on the auth provider
     value: "{credentials.username}"
 
   - action: fill

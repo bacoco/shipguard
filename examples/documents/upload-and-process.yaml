@@ -27,7 +27,7 @@ steps:
       - "Upload confirmed (file name visible)"
       - "Processing started (progress indicator visible)"
       - "Processing completed (success message or status indicator)"
-    screenshot: pipeline-complete.png
+    screenshot: upload-processing-complete.png
 
   - action: llm-check
     description: "Document appears in the list with correct status"
@@ -36,6 +36,6 @@ steps:
 
   - action: llm-check
     description: "Extracted entities are relevant to the document type"
-    criteria: "Entities include types matching: {data.expected_entities}"
+    criteria: "The extracted entities should include persons, dates, and addresses from the document."
     severity: critical
     screenshot: entities-extracted.png
