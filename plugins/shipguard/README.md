@@ -1,58 +1,149 @@
 # ShipGuard
 
-*Formerly Agentic Visual Debugger*
+AI-powered code audit + visual E2E testing for Claude Code.
 
-AI-powered code audit + visual E2E testing for any web app. Audit the code first, verify visually second. Zero tests written.
+## Quick Reference
 
-## Full ShipGuard Flow
+| Skill | Description |
+|-------|-------------|
+| `/sg-code-audit [mode]` | Parallel codebase audit (quick\|standard\|deep\|paranoid) |
+| `/sg-visual-run [what]` | Run visual tests -- natural language or flags |
+| `/sg-visual-review` | Launch interactive review dashboard |
+| `/sg-visual-discover [path]` | Generate YAML test manifests from codebase |
+| `/sg-visual-fix` | Fix annotated screenshots automatically |
+| `/sg-visual-review-stop` | Stop the review server |
+
+## sg-code-audit
+
+Dispatches parallel AI agents to audit every file in the repo. Each agent reviews a non-overlapping zone, finds bugs, and produces structured JSON.
+
+### Modes
+
+| Mode | Agents | Rounds | Coverage |
+|------|--------|--------|----------|
+| quick | 5 | 1 | Surface scan |
+| standard | 10 | 1 | Full codebase (default) |
+| deep | 15 | 2 | Surface + runtime behavior |
+| paranoid | 20 | 3 | Surface + runtime + edge cases & security |
+
+### Flags
+
+- `--focus=path/` -- restrict audit to a specific directory
+- `--report-only` -- find bugs but do not fix them
+
+Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only`
+
+### Output
+
+Results are written to `audit-results.json` with the following structure:
+- `summary` -- totals by severity and category
+- `bugs[]` -- each bug with file, line, severity, description, and fix status
+- `impacted_routes[]` -- UI routes affected by found bugs (consumed by `/sg-visual-run --from-audit`)
+
+### Multi-round audits
+
+- **R1**: Surface scan -- null refs, missing guards, type mismatches
+- **R2**: Runtime behavior -- race conditions, async pitfalls, state management
+- **R3**: Edge cases + security -- injection, auth bypass, data leaks
+
+### Supported languages
+
+Python, TypeScript/React, Next.js, Infrastructure (Docker/YAML/CI), Go, Rust, JVM.
+
+## sg-visual-run
+
+Executes YAML test manifests using agent-browser. Hybrid execution: mechanical steps run directly, complex assertions delegate to LLM evaluation.
+
+### Usage
 
 ```bash
-/code-audit                    # Find bugs in code
-/visual-run --from-audit       # Verify impacted routes visually
-/visual-review                 # See everything in one dashboard
+/sg-visual-run                                  # Interactive -- asks what to do
+/sg-visual-run I changed the sidebar, check it  # Natural language
+/sg-visual-run --from-audit                     # Run tests for audit-impacted routes
+/sg-visual-run --regressions                    # Re-run previously failed tests
 ```
 
-## Audit Modes
+**Interactive mode** (no args) presents four options: only what changed (git diff), only regressions, full suite, or free-form description.
 
-| Mode | Agents | Rounds |
-|------|--------|--------|
-| quick | 5 | 1 |
-| standard | 10 | 1 |
-| deep | 15 | 2 |
-| paranoid | 20 | 3 |
+**Natural language** mode parses the intent, finds matching test manifests, generates missing ones on the fly, and executes them.
 
-## Skills
+**--from-audit** reads `impacted_routes` from `audit-results.json` and runs only the matching test manifests.
 
-- `/code-audit` — Multi-agent parallel code audit. Finds real bugs (null refs, race conditions, missing guards). Outputs a prioritized bug list with file locations.
-- `/visual-discover` — Explore codebase, detect routes/forms/features, generate YAML test manifests mirroring UI navigation
-- `/visual-run` — Describe what to test in natural language. Finds matching tests, generates missing ones, executes with hybrid assertions, tracks regressions. Use `--from-audit` to run only routes impacted by the last code audit.
-- `/visual-review` — Build an interactive HTML review page with screenshots, annotations, and export tools
-- `/visual-fix` — AI reads annotated screenshots, traces to source code, implements fixes, captures before/after
-- `/visual-review-stop` — Stop the review page HTTP server
+**--regressions** re-runs tests listed in `_regressions.yaml`. Tests are removed from the regression list after 3 consecutive passes.
 
-## Natural Language Interface
+## sg-visual-review
+
+Builds and serves an interactive HTML dashboard at `http://localhost:8888`.
+
+### Two tabs
+
+- **Visual Tests** -- screenshot grid from `/sg-visual-run` results. Filter by status (pass/fail) and category.
+- **Code Audit** -- bug cards from `audit-results.json`. Filter by severity, category, and free-text search. CSV export available.
+
+### Screenshot annotations
+
+Click any screenshot to open the annotation view. Use pen tools to circle problem areas. When done, click "Validate & Generate Report" to produce `fix-manifest.json` -- the input for `/sg-visual-fix`.
+
+Stop the server with `/sg-visual-review-stop`.
+
+## sg-visual-discover
+
+Scans the codebase to detect routes, forms, and user journeys, then generates YAML test manifests mirroring the navigation tree.
 
 ```bash
-/visual-run                                    # run all tests
-/visual-run --regressions                      # run known failures first
-/visual-run --from-audit                       # run only audit-impacted routes
-/visual-run teste l'upload de PDF              # finds/creates upload test, runs it
-/visual-run j'ai modifie le chat, verifie      # git diff → impacted tests → run
+/sg-visual-discover                    # Scan current project
+/sg-visual-discover path/to/project    # Scan a specific project
 ```
 
-## Key Features
+Supports Next.js (App Router & Pages Router), React Router, Vue, and Angular. Manifests are written to `visual-tests/` with one YAML file per route or user journey.
 
-- Generic (Next.js, React, Vue, Angular)
-- Code audit before visual verification — find bugs in code, not just pixels
-- Dynamic test management (auto-create, auto-update, auto-retire)
-- Mandatory screenshot validation (every screenshot read + inspected, errors = FAIL)
-- Regression-aware (failed tests run first, removed after 3 passes)
-- Crash recovery + test isolation
+## sg-visual-fix
+
+Reads `fix-manifest.json` produced by the review dashboard annotations.
+
+For each annotated screenshot:
+1. Reads the annotation coordinates to identify the problem region
+2. Traces the visual bug to source code (component, CSS, data)
+3. Implements the fix
+4. Rebuilds the app (if `build_command` is set in `_config.yaml`)
+5. Re-runs the test to capture an "after" screenshot
+6. Generates a before/after comparison page
+
+```bash
+/sg-visual-fix                         # Uses latest fix-manifest.json
+/sg-visual-fix path/to/manifest.json   # Uses a specific manifest
+```
+
+## Configuration
+
+### visual-tests/_config.yaml
+
+```yaml
+base_url: "http://localhost:3000"
+credentials:
+  username: "testuser"
+  password: "testpass"
+screenshots_dir: "visual-tests/_results/screenshots"
+report_path: "visual-tests/_results/report.md"
+build_command: "docker compose up -d --build frontend"  # or null
+```
+
+### visual-tests/_regressions.yaml
+
+Auto-maintained by `/sg-visual-run`. Tracks tests that failed on the last run. Tests are removed after 3 consecutive passes. Do not edit manually.
 
 ## Install
 
 ```bash
-claude mcp add https://github.com/bacoco/agentic-visual-debugger
+claude plugin add bacoco/shipguard
 ```
 
-**Requires:** `agent-browser` CLI (`npm install -g agent-browser && agent-browser install --with-deps`)
+**Requires:** `agent-browser` CLI
+
+```bash
+npm install -g agent-browser && agent-browser install --with-deps
+```
+
+## License
+
+MIT
