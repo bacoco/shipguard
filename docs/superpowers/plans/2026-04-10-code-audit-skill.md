@@ -1,10 +1,10 @@
-# ShipGuard `/code-audit` Skill — Implementation Plan
+# ShipGuard `/sg-code-audit` Skill — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a `/code-audit` skill to ShipGuard that dispatches parallel AI agents to audit a codebase, fix bugs, and produce structured JSON results viewable in the visual-review dashboard.
+**Goal:** Add a `/sg-code-audit` skill to ShipGuard that dispatches parallel AI agents to audit a codebase, fix bugs, and produce structured JSON results viewable in the visual-review dashboard.
 
-**Architecture:** Single SKILL.md orchestrates the full flow: detect stack → discover zones → dispatch agents in worktrees → collect JSON → merge → aggregate → report. The visual-review page gains a "Code Audit" tab by reading `audit-results.json`. A handoff field `impacted_routes` feeds into `/visual-run --from-audit`.
+**Architecture:** Single SKILL.md orchestrates the full flow: detect stack → discover zones → dispatch agents in worktrees → collect JSON → merge → aggregate → report. The visual-review page gains a "Code Audit" tab by reading `audit-results.json`. A handoff field `impacted_routes` feeds into `/sg-visual-run --from-audit`.
 
 **Tech Stack:** Claude Code skills (SKILL.md), Agent tool with worktree isolation, Node.js build script (build-review.mjs), HTML/CSS/JS (review template)
 
@@ -15,7 +15,7 @@
 ## File Structure
 
 ```
-plugins/agentic-visual-debugger/skills/
+plugins/shipguard/skills/
   code-audit/
     SKILL.md                    ← NEW: main skill (orchestration logic)
     references/
@@ -32,30 +32,30 @@ plugins/agentic-visual-debugger/skills/
 ### Task 1: Create the code-audit SKILL.md
 
 **Files:**
-- Create: `plugins/agentic-visual-debugger/skills/code-audit/SKILL.md`
+- Create: `plugins/shipguard/skills/sg-code-audit/SKILL.md`
 
 - [ ] **Step 1: Create the skill frontmatter + overview**
 
 ```markdown
 ---
 name: code-audit
-description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /visual-review. Trigger on "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
+description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /sg-visual-review. Trigger on "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
 context: conversation
 argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only]"
 ---
 
-# /code-audit — Parallel Codebase Audit
+# /sg-code-audit — Parallel Codebase Audit
 
-Dispatch parallel AI agents to audit every file in your repo. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Results appear in the `/visual-review` dashboard under a "Code Audit" tab.
+Dispatch parallel AI agents to audit every file in your repo. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Results appear in the `/sg-visual-review` dashboard under a "Code Audit" tab.
 ```
 
 - [ ] **Step 2: Write the invocation section**
 
 Document all modes and flags:
-- `/code-audit` → standard (10 agents, 1 round)
-- `/code-audit quick` → 5 agents, surface
-- `/code-audit deep` → 15 agents, 2 rounds
-- `/code-audit paranoid` → 20 agents, 3 rounds
+- `/sg-code-audit` → standard (10 agents, 1 round)
+- `/sg-code-audit quick` → 5 agents, surface
+- `/sg-code-audit deep` → 15 agents, 2 rounds
+- `/sg-code-audit paranoid` → 20 agents, 3 rounds
 - `--focus=path/` → restrict scope
 - `--report-only` → no fixes
 
@@ -190,8 +190,8 @@ When all agents complete:
 3. Write audit-results.json to {results_dir}/
 4. Print summary table to terminal
 5. Suggest next steps:
-   - "/visual-run --from-audit" to visually verify impacted routes
-   - "/visual-review" to see the full dashboard
+   - "/sg-visual-run --from-audit" to visually verify impacted routes
+   - "/sg-visual-review" to see the full dashboard
 ```
 
 - [ ] **Step 9: Write the multi-round loop**
@@ -208,8 +208,8 @@ If mode requires multiple rounds (deep=2, paranoid=3):
 - [ ] **Step 10: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/skills/code-audit/SKILL.md
-git commit -m "feat: add /code-audit skill — parallel codebase audit"
+git add plugins/shipguard/skills/sg-code-audit/SKILL.md
+git commit -m "feat: add /sg-code-audit skill — parallel codebase audit"
 ```
 
 ---
@@ -217,7 +217,7 @@ git commit -m "feat: add /code-audit skill — parallel codebase audit"
 ### Task 2: Create the language checklists reference
 
 **Files:**
-- Create: `plugins/agentic-visual-debugger/skills/code-audit/references/checklists.md`
+- Create: `plugins/shipguard/skills/sg-code-audit/references/checklists.md`
 
 - [ ] **Step 1: Write round focus descriptions**
 
@@ -351,8 +351,8 @@ Find what R1+R2 missed. Think like a security auditor + QA tester.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/skills/code-audit/references/checklists.md
-git commit -m "feat: add language-specific audit checklists for /code-audit"
+git add plugins/shipguard/skills/sg-code-audit/references/checklists.md
+git commit -m "feat: add language-specific audit checklists for /sg-code-audit"
 ```
 
 ---
@@ -360,7 +360,7 @@ git commit -m "feat: add language-specific audit checklists for /code-audit"
 ### Task 3: Add Code Audit tab to visual-review build script
 
 **Files:**
-- Modify: `plugins/agentic-visual-debugger/skills/visual-review/build-review.mjs`
+- Modify: `plugins/shipguard/skills/sg-visual-review/build-review.mjs`
 
 - [ ] **Step 1: Add audit-results.json detection**
 
@@ -380,7 +380,7 @@ Add an `audit` field to the `data` object (set to `null` if no audit-results.jso
 - [ ] **Step 3: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/skills/visual-review/build-review.mjs
+git add plugins/shipguard/skills/sg-visual-review/build-review.mjs
 git commit -m "feat: build-review reads audit-results.json for Code Audit tab"
 ```
 
@@ -389,7 +389,7 @@ git commit -m "feat: build-review reads audit-results.json for Code Audit tab"
 ### Task 4: Add Code Audit tab to HTML review template
 
 **Files:**
-- Modify: `plugins/agentic-visual-debugger/skills/visual-review/_review-template.html`
+- Modify: `plugins/shipguard/skills/sg-visual-review/_review-template.html`
 
 > **SCOPE WARNING:** The template is a complex single-page app (~430 lines of JS) with its own sidebar, grid, lightbox, annotations, canvas drawing, session persistence, and action bar. Adding tabs requires wrapping the existing visual-tests UI and the new audit UI in switchable panels. This is NOT an append-only change — it touches the layout structure, filter system, and stats rendering. Read the full template before making changes.
 
@@ -437,7 +437,7 @@ Implement:
 - [ ] **Step 5: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/skills/visual-review/_review-template.html
+git add plugins/shipguard/skills/sg-visual-review/_review-template.html
 git commit -m "feat: add Code Audit tab to visual-review page"
 ```
 
@@ -446,14 +446,14 @@ git commit -m "feat: add Code Audit tab to visual-review page"
 ### Task 5: Add `--from-audit` flag to visual-run
 
 **Files:**
-- Modify: `plugins/agentic-visual-debugger/skills/visual-run/SKILL.md`
+- Modify: `plugins/shipguard/skills/sg-visual-run/SKILL.md`
 
 - [ ] **Step 1: Add the `--from-audit` invocation**
 
 In the invocations table, add:
 
 ```markdown
-| `/visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
+| `/sg-visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
 ```
 
 - [ ] **Step 2: Document the from-audit flow**
@@ -474,8 +474,8 @@ When `--from-audit` is passed:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/skills/visual-run/SKILL.md
-git commit -m "feat: add --from-audit flag to /visual-run for code→visual handoff"
+git add plugins/shipguard/skills/sg-visual-run/SKILL.md
+git commit -m "feat: add --from-audit flag to /sg-visual-run for code→visual handoff"
 ```
 
 ---
@@ -483,11 +483,11 @@ git commit -m "feat: add --from-audit flag to /visual-run for code→visual hand
 ### Task 6: Update plugin metadata and README
 
 **Files:**
-- Modify: `plugins/agentic-visual-debugger/.claude-plugin/plugin.json`
+- Modify: `plugins/shipguard/.claude-plugin/plugin.json`
 - Modify: `.claude-plugin/marketplace.json`
-- Modify: `plugins/agentic-visual-debugger/README.md`
+- Modify: `plugins/shipguard/README.md`
 
-> **Rebrand decision:** The git repo stays `agentic-visual-debugger` (renaming repos breaks install URLs, forks, and open issues). Only the **display name** changes to "ShipGuard" in plugin.json, marketplace.json, and README. Skill file names stay unchanged (`visual-run`, `visual-review`, `visual-discover`, `code-audit`). No directory renames.
+> **Rebrand note (2026-04-10):** Repo renamed to `bacoco/shipguard`. Plugin dir is `plugins/shipguard/`. All skills prefixed with `sg-`.
 
 - [ ] **Step 1: Update plugin.json**
 
@@ -509,13 +509,13 @@ git commit -m "feat: add --from-audit flag to /visual-run for code→visual hand
 - Add the code-audit section. Document the full ShipGuard flow:
 
 ```
-/code-audit                    # Find bugs in code
-/visual-run --from-audit       # Verify impacted routes visually
-/visual-review                 # See everything in one dashboard
+/sg-code-audit                    # Find bugs in code
+/sg-visual-run --from-audit       # Verify impacted routes visually
+/sg-visual-review                 # See everything in one dashboard
 ```
 
 Add the modes table (quick/standard/deep/paranoid).
-- Keep install instructions using the repo name `agentic-visual-debugger` (since the repo is not renamed)
+- Install instructions use the repo name `bacoco/shipguard`
 
 - [ ] **Step 3: Update marketplace.json**
 
@@ -529,8 +529,8 @@ Add the modes table (quick/standard/deep/paranoid).
 - [ ] **Step 4: Commit**
 
 ```bash
-git add plugins/agentic-visual-debugger/.claude-plugin/plugin.json plugins/agentic-visual-debugger/README.md .claude-plugin/marketplace.json
-git commit -m "feat: rebrand to ShipGuard v2.0.0 + update README with /code-audit"
+git add plugins/shipguard/.claude-plugin/plugin.json plugins/shipguard/README.md .claude-plugin/marketplace.json
+git commit -m "feat: rebrand to ShipGuard v2.0.0 + update README with /sg-code-audit"
 ```
 
 ---
@@ -540,17 +540,17 @@ git commit -m "feat: rebrand to ShipGuard v2.0.0 + update README with /code-audi
 **Files:**
 - No files created — manual verification
 
-- [ ] **Step 1: Non-regression — /visual-review WITHOUT audit data**
+- [ ] **Step 1: Non-regression — /sg-visual-review WITHOUT audit data**
 
 **Critical:** Before testing audit features, verify the existing visual-review still works perfectly without any `audit-results.json`:
 1. Delete or rename any existing `audit-results.json` in results dir
-2. Run `/visual-review`
+2. Run `/sg-visual-review`
 3. Verify: no tab buttons, no audit UI, identical behavior to before this work
 4. Screenshot grid, lightbox, annotations, filters, sidebar, action bar all work unchanged
 
-- [ ] **Step 2: Run /code-audit quick on a small test project**
+- [ ] **Step 2: Run /sg-code-audit quick on a small test project**
 
-Find or create a small repo with known bugs (e.g., a Python file with `except: pass` and a TS file with `|| []`). Run `/code-audit quick` and verify:
+Find or create a small repo with known bugs (e.g., a Python file with `except: pass` and a TS file with `|| []`). Run `/sg-code-audit quick` and verify:
 - Stack detection identifies Python + TypeScript + Next.js (if applicable)
 - Zones are created correctly (file counts > 1 per directory)
 - Agents dispatch and complete
@@ -558,9 +558,9 @@ Find or create a small repo with known bugs (e.g., a Python file with `except: p
 - Bugs are found and fixed
 - Working tree check blocks merge if uncommitted changes exist
 
-- [ ] **Step 3: Run /visual-review WITH audit data and verify Code Audit tab**
+- [ ] **Step 3: Run /sg-visual-review WITH audit data and verify Code Audit tab**
 
-After audit completes, run `/visual-review` and check:
+After audit completes, run `/sg-visual-review` and check:
 - Tab buttons appear (Visual Tests + Code Audit)
 - Default tab is Visual Tests — existing UI unchanged
 - Switching to Code Audit shows bug cards
@@ -570,7 +570,7 @@ After audit completes, run `/visual-review` and check:
 - CSV export works
 - Switching back to Visual Tests — all state preserved
 
-- [ ] **Step 4: Run /visual-run --from-audit**
+- [ ] **Step 4: Run /sg-visual-run --from-audit**
 
 Verify that impacted routes from the audit are used to scope visual tests. Check that uncovered routes (no matching manifest) are logged but don't block execution.
 

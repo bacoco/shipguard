@@ -1,4 +1,4 @@
-# ShipGuard `/code-audit` — Design Spec
+# ShipGuard `/sg-code-audit` — Design Spec
 
 **Date:** 2026-04-10
 **Status:** Approved
@@ -18,16 +18,16 @@ ShipGuard is a single product with a two-stage audit flow:
 Code changes
      │
      ▼
-Code Audit (/code-audit)
+Code Audit (/sg-code-audit)
      │
      ▼
 Findings + impacted routes
      │
      ▼
-Visual Audit (/visual-run, scoped by code audit findings)
+Visual Audit (/sg-visual-run, scoped by code audit findings)
      │
      ▼
-Unified Review (/visual-review — Code Audit tab + Screenshots tab)
+Unified Review (/sg-visual-review — Code Audit tab + Screenshots tab)
      │
      ▼
 Human decides what matters
@@ -35,7 +35,7 @@ Human decides what matters
 
 **Code audit narrows the field. Visual audit confirms reality. Human review decides what matters.**
 
-The code audit output includes a list of impacted routes and workflows. This list can feed directly into `/visual-run` to scope the visual audit to the areas most likely broken — instead of running a blind full-suite screenshot pass.
+The code audit output includes a list of impacted routes and workflows. This list can feed directly into `/sg-visual-run` to scope the visual audit to the areas most likely broken — instead of running a blind full-suite screenshot pass.
 
 ### Handoff: code-audit → visual-run
 
@@ -51,24 +51,24 @@ The `audit-results.json` includes an `impacted_routes` field derived from bug lo
 }
 ```
 
-`/visual-run` can consume this: `/visual-run --from-audit` reads the impacted routes and runs only the matching visual tests. This keeps the visual audit focused on what the code audit flagged, rather than testing everything blindly.
+`/sg-visual-run` can consume this: `/sg-visual-run --from-audit` reads the impacted routes and runs only the matching visual tests. This keeps the visual audit focused on what the code audit flagged, rather than testing everything blindly.
 
 ## Invocation
 
 ```
-/code-audit              → standard (10 agents, 1 round)
-/code-audit quick        → 5 agents, surface scan
-/code-audit deep         → 15 agents, 2 rounds
-/code-audit paranoid     → 20 agents, 3 rounds
-/code-audit --focus=src/ → restrict scope to a directory
-/code-audit --report-only → find bugs but don't fix them
+/sg-code-audit              → standard (10 agents, 1 round)
+/sg-code-audit quick        → 5 agents, surface scan
+/sg-code-audit deep         → 15 agents, 2 rounds
+/sg-code-audit paranoid     → 20 agents, 3 rounds
+/sg-code-audit --focus=src/ → restrict scope to a directory
+/sg-code-audit --report-only → find bugs but don't fix them
 ```
 
 ## Architecture
 
 ### Approach: Single skill + review integration
 
-- `/code-audit` — does everything (discover zones, dispatch agents, collect results, merge)
+- `/sg-code-audit` — does everything (discover zones, dispatch agents, collect results, merge)
 - The HTML review is a tab added to the existing `visual-review` page (reads `audit-results.json`)
 - No separate discover or review skill — zone discovery is an implementation detail, review is handled by the existing visual-review infrastructure
 
@@ -293,18 +293,17 @@ The existing `visual-review` page detects `audit-results.json` in the results di
 6. REPORT
    → print summary table to terminal
    → if visual-review results dir exists: copy audit-results.json there
-   → suggest "/visual-run --from-audit" to verify impacted routes visually
-   → suggest "/visual-review" to see the full dashboard
+   → suggest "/sg-visual-run --from-audit" to verify impacted routes visually
+   → suggest "/sg-visual-review" to see the full dashboard
 ```
 
 ## Repo Rename
 
-The GitHub repo `bacoco/agentic-visual-debugger` will be renamed to `bacoco/shipguard`.
+The GitHub repo has been renamed from `bacoco/agentic-visual-debugger` to `bacoco/shipguard`.
 
 - Plugin name: `shipguard`
-- Install: `claude plugin marketplace add bacoco/shipguard`
-- Existing `visual-*` skills keep their names (no breaking change)
-- New skill: `code-audit`
+- Install: `claude plugin add bacoco/shipguard`
+- All skills use the `sg-` prefix: `sg-code-audit`, `sg-visual-run`, `sg-visual-review`, `sg-visual-discover`, `sg-visual-fix`, `sg-visual-review-stop`.
 - GitHub handles redirects from the old URL automatically
 
 ## Proven Patterns
