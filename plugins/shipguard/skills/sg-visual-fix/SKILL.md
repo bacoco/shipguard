@@ -1,13 +1,13 @@
 ---
-name: visual-fix
-description: Process human-annotated Visual screenshots — analyze marked problem areas, trace to source code, implement fixes, capture before/after screenshots, and regenerate the review page with a comparison tab. Trigger on "fix annotated tests", "process review annotations", "visual fix", "fix les annotations", "traite la review".
+name: sg-visual-fix
+description: Process human-annotated Visual screenshots — analyze marked problem areas, trace to source code, implement fixes, capture before/after screenshots, and regenerate the review page with a comparison tab. Trigger on "sg-visual-fix", "fix annotated tests", "process review annotations", "visual fix", "fix les annotations", "traite la review".
 context: conversation
 argument-hint: "[path to fix manifest JSON, or 'latest' to use most recent]"
 ---
 
-# /visual-fix — Fix Annotated Screenshots
+# /sg-visual-fix — Fix Annotated Screenshots
 
-Take human-annotated screenshots from `/visual-review`, analyze the marked problems, fix the code, and produce before/after comparison.
+Take human-annotated screenshots from `/sg-visual-review`, analyze the marked problems, fix the code, and produce before/after comparison.
 
 ## Flow
 
@@ -15,7 +15,7 @@ Take human-annotated screenshots from `/visual-review`, analyze the marked probl
 Human annotates screenshots in review.html
   → clicks "Validate & Generate Report"
   → downloads fix-manifest.json + validation-report.md
-  → runs /visual-fix
+  → runs /sg-visual-fix
     → AI reads each annotated screenshot
     → AI reads the annotation coordinates (problem region)
     → AI identifies the visual bug in that region
@@ -30,8 +30,8 @@ Human annotates screenshots in review.html
 
 | Command | Behavior |
 |---------|----------|
-| `/visual-fix` | Process the most recent fix manifest in `visual-tests/_results/` |
-| `/visual-fix <path>` | Process a specific fix manifest JSON file |
+| `/sg-visual-fix` | Process the most recent fix manifest in `visual-tests/_results/` |
+| `/sg-visual-fix <path>` | Process a specific fix manifest JSON file |
 
 ## Instructions
 

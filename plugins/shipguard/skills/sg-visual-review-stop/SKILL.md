@@ -1,10 +1,10 @@
 ---
-name: visual-review-stop
-description: Stop the Visual review HTTP server. Trigger on "visual-review-stop", "stop review server", "stop html server".
+name: sg-visual-review-stop
+description: Stop the Visual review HTTP server. Trigger on "sg-visual-review-stop", "visual-review-stop", "stop review server", "stop html server".
 context: conversation
 ---
 
-# /visual-review-stop
+# /sg-visual-review-stop
 
 Stop the review page HTTP server.
 

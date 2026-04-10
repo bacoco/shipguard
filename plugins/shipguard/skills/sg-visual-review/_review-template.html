@@ -371,7 +371,7 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
   <div class="success-box">
     <h2>&#10003; Report saved</h2>
     <p>Close this page and run in Claude Code:</p>
-    <p><code>/visual-fix</code></p>
+    <p><code>/sg-visual-fix</code></p>
     <p class="success-box-hint">The AI will read your annotations, trace each problem to the source code, fix it, and show you before/after screenshots.</p>
   </div>
 </div>
@@ -630,7 +630,7 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
       var p = canvasCoords(e);
       var annot = null;
       if (penMode === 'freehand' && currentPath.length > 2) {
-        // Compute bounding box from points for /visual-fix compatibility
+        // Compute bounding box from points for /sg-visual-fix compatibility
         var xs = currentPath.map(function(p){return p.x;});
         var ys = currentPath.map(function(p){return p.y;});
         annot = {type:'freehand', points:currentPath.slice(), x1:Math.min.apply(null,xs), y1:Math.min.apply(null,ys), x2:Math.max.apply(null,xs), y2:Math.max.apply(null,ys), note:''};

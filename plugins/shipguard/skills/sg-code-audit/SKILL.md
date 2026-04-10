@@ -1,25 +1,25 @@
 ---
-name: code-audit
-description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /visual-review. Trigger on "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
+name: sg-code-audit
+description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /sg-visual-review. Trigger on "sg-code-audit", "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
 context: conversation
 argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only]"
 ---
 
-# /code-audit — Parallel Codebase Audit
+# /sg-code-audit — Parallel Codebase Audit
 
-Dispatch parallel AI agents to audit every file in your repo. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Results appear in the `/visual-review` dashboard under a "Code Audit" tab.
+Dispatch parallel AI agents to audit every file in your repo. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Results appear in the `/sg-visual-review` dashboard under a "Code Audit" tab.
 
 ## Invocations
 
 | Command | Behavior |
 |---------|----------|
-| `/code-audit` | **Standard** mode — 10 agents, 1 round, fix bugs |
-| `/code-audit quick` | 5 agents, 1 round, surface scan only |
-| `/code-audit deep` | 15 agents, 2 rounds (surface + depth) |
-| `/code-audit paranoid` | 20 agents, 3 rounds (surface + depth + edge cases) |
-| `/code-audit --focus=path/` | Restrict audit scope to a directory |
-| `/code-audit --report-only` | Find bugs but do NOT fix them |
-| `/code-audit deep --focus=src/ --report-only` | Combine flags freely |
+| `/sg-code-audit` | **Standard** mode — 10 agents, 1 round, fix bugs |
+| `/sg-code-audit quick` | 5 agents, 1 round, surface scan only |
+| `/sg-code-audit deep` | 15 agents, 2 rounds (surface + depth) |
+| `/sg-code-audit paranoid` | 20 agents, 3 rounds (surface + depth + edge cases) |
+| `/sg-code-audit --focus=path/` | Restrict audit scope to a directory |
+| `/sg-code-audit --report-only` | Find bugs but do NOT fix them |
+| `/sg-code-audit deep --focus=src/ --report-only` | Combine flags freely |
 
 ---
 
@@ -41,7 +41,7 @@ Parse the user's input into three values: **mode**, **focus**, and **fix_mode**.
 
 5. Store these as working variables: `agent_count`, `round_count`, `focus_path`, `fix_mode`.
 6. Determine `results_dir`:
-   - If `visual-tests/_results/` exists in the repo → use it (co-located with visual test results for `/visual-review` handoff)
+   - If `visual-tests/_results/` exists in the repo → use it (co-located with visual test results for `/sg-visual-review` handoff)
    - Otherwise → create `.code-audit-results/` at repo root and use it
    - Store as `results_dir` (absolute path). All zone JSON files and the final `audit-results.json` go here.
 7. Print to user: `Code audit: {mode} mode ({agent_count} agents, {round_count} round(s)){", focus: " + focus_path if set}{", report-only" if not fix_mode}`
@@ -456,8 +456,8 @@ Merge conflicts (manual resolution required): {count} zones
 Results: {path to audit-results.json}
 
 Next steps:
-  /visual-run --from-audit    Visually verify impacted routes
-  /visual-review              See the full dashboard with Code Audit tab
+  /sg-visual-run --from-audit    Visually verify impacted routes
+  /sg-visual-review              See the full dashboard with Code Audit tab
 ```
 
 ---
@@ -576,4 +576,4 @@ Before reporting completion to the user, verify:
 - [ ] audit-results.json written with correct schema
 - [ ] impacted_routes derived using generic detection (no hardcoded paths)
 - [ ] Summary printed to terminal
-- [ ] Next steps suggested (/visual-run --from-audit, /visual-review)
+- [ ] Next steps suggested (/sg-visual-run --from-audit, /sg-visual-review)

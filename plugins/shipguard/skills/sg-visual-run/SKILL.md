@@ -1,11 +1,11 @@
 ---
-name: visual-run
-description: Execute Visual test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "visual run", "run visual tests", "test regressions", "run tests", "visual-run", "check if the app works", "I changed X check it still works".
+name: sg-visual-run
+description: Execute Visual test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "sg-visual-run", "visual run", "run visual tests", "test regressions", "run tests", "visual-run", "check if the app works", "I changed X check it still works".
 context: conversation
 argument-hint: "[tests to run or natural language description]"
 ---
 
-# /visual-run — Execute Visual Tests
+# /sg-visual-run — Execute Visual Tests
 
 Execute YAML test manifests using agent-browser (Playwright CLI). Hybrid execution: mechanical steps run directly, complex assertions delegate to LLM evaluation.
 
@@ -13,7 +13,7 @@ Execute YAML test manifests using agent-browser (Playwright CLI). Hybrid executi
 
 | Command | Behavior |
 |---------|----------|
-| `/visual-run` | **Interactive** — asks user what to do |
+| `/sg-visual-run` | **Interactive** — asks user what to do |
 | `/visual-run <natural language>` | Describe what to test — the skill figures out the rest |
 | `/visual-run --from-audit` | Read `audit-results.json`, extract `impacted_routes`, find matching test manifests, run only those |
 
@@ -42,10 +42,10 @@ If the user picks "Full suite", run everything.
 When you pass free text, the skill operates in **impact analysis mode**:
 
 ```bash
-/visual-run test the PDF upload and the pipeline
-/visual-run I changed the sidebar, check everything works
-/visual-run does the chat work with an attached document?
-/visual-run I changed Header.tsx and ChatView.tsx
+/sg-visual-run test the PDF upload and the pipeline
+/sg-visual-run I changed the sidebar, check everything works
+/sg-visual-run does the chat work with an attached document?
+/sg-visual-run I changed Header.tsx and ChatView.tsx
 ```
 
 **Flow:**
@@ -61,7 +61,7 @@ When you pass free text, the skill operates in **impact analysis mode**:
    - Text mentions a file like "Header.tsx" → find which routes/components use it → match those manifests
 
 3. **Generate missing tests** — If the described scope has no existing test:
-   - Invoke `/visual-discover` with a narrow scope on that area (e.g., `/visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
+   - Invoke `/sg-visual-discover` with a narrow scope on that area (e.g., `/visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
    - Generate a new manifest with real steps and assertions
    - **Tag the manifest** with `auto_generated: true`, `generated_by: visual-run`, `generated_date: "{date}"` in the frontmatter
    - Save it to the test tree
@@ -87,14 +87,14 @@ When `--from-audit` is passed:
 1. Read `audit-results.json` from the results directory: check `visual-tests/_results/audit-results.json` first, then `{repo_root}/audit-results.json`, then `.code-audit-results/audit-results.json`. Fail with a clear message if not found.
 2. Extract `impacted_routes` array
 3. For each route, find matching YAML manifests by URL path (glob `visual-tests/**/*.yaml`, match `url` field)
-4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/visual-discover` separately to create manifests for new routes)
+4. If no manifest matches a route, log it as "uncovered route" (do NOT auto-generate — the user can run `/sg-visual-discover` separately to create manifests for new routes)
 5. Run matched manifests (highest severity routes first)
 6. Report: which routes were visually verified, which had no manifest (uncovered), and which code-audit findings were visually confirmed vs not reproduced
 
 ## Pre-flight
 
 1. Verify `agent-browser --version` is available
-2. Read `visual-tests/_config.yaml` — fail if missing (tell user to run `/visual-discover`)
+2. Read `visual-tests/_config.yaml` — fail if missing (tell user to run `/sg-visual-discover`)
 3. Verify `{base_url}` is reachable: `agent-browser open {base_url}`, check no error
 4. Create `{screenshots_dir}` if missing
 5. Read `visual-tests/_regressions.yaml` (create empty if missing)
@@ -319,7 +319,7 @@ For each test that PASSED and is in regressions:
 ### Regressions File Format
 
 ```yaml
-# Auto-maintained by /visual-run — do not edit manually
+# Auto-maintained by /sg-visual-run — do not edit manually
 regressions:
   - test: dashboard/file-upload
     first_failed: "2026-03-22"
@@ -357,7 +357,7 @@ Write to `{report_path}` (default: `visual-tests/_results/report.md`):
 ## Stale Tests
 ### {test_path} — STALE
 - Step {n}: {action} target "{target}" — element not found
-- Action: Run `/visual-discover` to update selectors
+- Action: Run `/sg-visual-discover` to update selectors
 
 ## Generated Tests
 - {test_path}: created to cover "{user_description}"
@@ -386,7 +386,7 @@ Failures:
 {/if}
 
 {if stale}
-Stale tests (UI changed — run /visual-discover):
+Stale tests (UI changed — run /sg-visual-discover):
 - {test_path}
 {/if}
 

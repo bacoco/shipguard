@@ -1,11 +1,11 @@
 ---
-name: visual-review
-description: Generate an interactive HTML screenshot review page from Visual test results. Browse all test screenshots in a grid, filter by status/category, annotate problems with a pen tool, multi-select failed tests, and export re-run manifests. Trigger on "visual review", "review screenshots", "show test results", "review visual", "visual-review", "show results", "test review".
+name: sg-visual-review
+description: Generate an interactive HTML screenshot review page from Visual test results. Browse all test screenshots in a grid, filter by status/category, annotate problems with a pen tool, multi-select failed tests, and export re-run manifests. Trigger on "sg-visual-review", "visual review", "review screenshots", "show test results", "review visual", "visual-review", "show results", "test review".
 context: conversation
 argument-hint: "[optional: regenerate | open]"
 ---
 
-# /visual-review — Interactive Screenshot Review
+# /sg-visual-review — Interactive Screenshot Review
 
 Generate and open a self-contained HTML page to visually review all Visual test screenshots, annotate problems, and export re-run manifests.
 
@@ -13,14 +13,14 @@ Generate and open a self-contained HTML page to visually review all Visual test 
 
 | Command | Behavior |
 |---------|----------|
-| `/visual-review` | Build + start server + tell user to open http://localhost:8888 |
+| `/sg-visual-review` | Build + start server + tell user to open http://localhost:8888 |
 
-**Always:** Build the review page, start the HTTP server, and give the user the URL. No flags, no options. To stop: `/visual-review-stop`.
+**Always:** Build the review page, start the HTTP server, and give the user the URL. No flags, no options. To stop: `/sg-visual-review-stop`.
 
 ## Prerequisites
 
-- `/visual-discover` has been run (manifests exist in `visual-tests/`)
-- `/visual-run` has been run at least once (screenshots + report exist in `visual-tests/_results/`)
+- `/sg-visual-discover` has been run (manifests exist in `visual-tests/`)
+- `/sg-visual-run` has been run at least once (screenshots + report exist in `visual-tests/_results/`)
 - No external npm dependencies — the build script uses a built-in YAML parser
 
 ## What It Does
@@ -98,13 +98,13 @@ The review page provides:
 Take the exported JSON and feed it back:
 
 ```bash
-/visual-run <paste test IDs>
+/sg-visual-run <paste test IDs>
 ```
 
 Or use the test paths directly:
 
 ```bash
-/visual-run auth/login dashboard/home settings/profile
+/sg-visual-run auth/login dashboard/home settings/profile
 ```
 
 ## Build Script Location
@@ -123,8 +123,8 @@ If the build script is not yet in the project:
 
 ```bash
 # Copy from plugin
-cp ~/.claude/plugins/agentic-visual-debugger/skills/visual-review/build-review.mjs visual-tests/
-cp ~/.claude/plugins/agentic-visual-debugger/skills/visual-review/_review-template.html visual-tests/
+cp ~/.claude/plugins/shipguard/skills/sg-visual-review/build-review.mjs visual-tests/
+cp ~/.claude/plugins/shipguard/skills/sg-visual-review/_review-template.html visual-tests/
 
 # Add npm script (optional)
 # In package.json: "visual:review": "node visual-tests/build-review.mjs"
