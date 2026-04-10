@@ -166,12 +166,12 @@ Each agent receives:
 - **`--report-only`:** agents only report, no edits
 - All fixes are in isolated git worktrees — easy to revert with `git reset`
 - After all agents complete, worktrees are merged into the working branch
-- Merge conflicts on non-overlapping zones are auto-resolved (accept theirs)
+- Merge conflicts on non-overlapping zones: abort the merge (`git merge --abort`), log the conflict, and preserve the branch for manual resolution.
 - Unresolvable conflicts are logged for user attention
 
 ## JSON Output Format
 
-### Per-zone output (`zones/zone-{N}.json`)
+### Per-zone output (`zone-{zone_id}-r{round}.json` flat in results_dir)
 
 ```json
 {

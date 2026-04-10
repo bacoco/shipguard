@@ -37,7 +37,7 @@ Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only`
 
 ### Output
 
-Results are written to `audit-results.json` with the following structure:
+Results are written to `audit-results.json` with the following structure (written to `visual-tests/_results/audit-results.json`, or `.code-audit-results/audit-results.json` if no visual-tests directory exists):
 - `summary` -- totals by severity and category
 - `bugs[]` -- each bug with file, line, severity, description, and fix status
 - `impacted_routes[]` -- UI routes affected by found bugs (consumed by `/sg-visual-run --from-audit`)

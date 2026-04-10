@@ -43,7 +43,8 @@ shipguard/                              (GitHub repo)
 │   └── marketplace.json
 ├── .github/
 │   ├── ISSUE_TEMPLATE/
-│   │   └── bug_report.md
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── docs/
 │   ├── architecture.md                 (rewrite of design-spec.md)
@@ -80,7 +81,7 @@ shipguard/                              (GitHub repo)
 
 Tone: marketing pitch (3-4 phrases) then dev quickstart.
 
-1. **Hero image** — `docs/screenshots/hero.png` (Code Audit tab with bug cards)
+1. **Hero image** — `docs/screenshots/hero-banner.jpg` (Code Audit tab with bug cards)
 2. **Tagline** — one line
 3. **Pitch** — 3-4 phrases: the problem, the solution, why ShipGuard is different
 4. **The flow** — 3 commands:
@@ -134,13 +135,14 @@ New content:
 
 ## Screenshots to Recapture
 
-Captured via agent-browser + build-review.mjs with test data. 5 screenshots (actual filenames):
+Captured via agent-browser + build-review.mjs with test data. 6 screenshots (actual filenames):
 
 1. **hero-banner.jpg** — Gemini-generated hero image (compressed from 7.2MB to 212KB)
 2. **code-audit-bugs.png** — Code Audit tab with 8 bug cards, severity colors, filters
 3. **visual-tests-grid.png** — screenshot grid with 3 tests, real thumbnails, PASS/FAIL badges
 4. **annotation-with-note.png** — lightbox with drawn rectangle + text note describing the problem
 5. **discover-output.png** — terminal output of `/sg-visual-discover` showing 24 routes, smart scope
+6. **monitor-tab-gantt.png** — Monitor tab — Gantt timeline of audit agents with live stats.
 
 Screenshots go to `docs/screenshots/` (not `docs/` root). Old images at `docs/*.png` are deleted.
 

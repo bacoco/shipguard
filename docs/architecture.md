@@ -315,6 +315,7 @@ Generates a self-contained HTML dashboard from test results, audit data, and scr
 3. `visual-tests/_regressions.yaml` -- failure reasons and regression tracking
 4. `visual-tests/_results/screenshots/` -- matched to tests by slug or manifest `screenshot` field
 5. `visual-tests/_results/audit-results.json` -- code audit data (optional, enables Code Audit tab)
+6. `visual-tests/_results/monitor-data.json` -- monitor state (optional, enables Monitor tab at runtime — fetched dynamically, not injected at build time)
 
 **Processing:**
 1. Parse config (`_config.yaml`)
@@ -335,6 +336,7 @@ Generates a self-contained HTML dashboard from test results, audit data, and scr
 
 - **Visual Tests** (default) -- Grid of test cards with screenshots, status badges, filters
 - **Code Audit** -- Conditional on `data.audit` being non-null. Shows bug list from `audit-results.json` with severity and category breakdowns
+- **Monitor** -- Live Gantt timeline of audit agent progress. Shows per-agent duration, token usage, estimated cost, and bugs found. Appears when `monitor-data.json` exists or an audit is in progress. Polls every 3s.
 
 ### Annotation System
 

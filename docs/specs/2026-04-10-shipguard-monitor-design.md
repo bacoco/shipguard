@@ -374,7 +374,7 @@ If audit data also exists (`audit-results.json`), show a link: "View Code Audit 
 
 ### `build-review.mjs`
 
-1. Add `GET /health` route — returns `{"status": "ok"}`
+1. Add `GET /health` route — returns `{"status": "ok", "results_dir": "/absolute/path/to/visual-tests/_results"}`
 2. Add `POST /api/monitor/audit-start` route — resets monitor state, writes initial monitor-data.json
 3. Add `POST /api/monitor/agent-update` route — updates agent entry, recalculates totals, writes monitor-data.json
 4. Add `POST /api/monitor/audit-complete` route — finalizes monitor state
