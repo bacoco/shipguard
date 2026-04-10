@@ -202,12 +202,61 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
 /* Empty state */
 .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)}
 
+/* Tab switcher */
+.header-tabs{display:none;gap:4px;margin-left:16px}
+.header-tabs.visible{display:flex}
+.tab-btn{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:13px;font-weight:600;transition:.2s}
+.tab-btn:hover{border-color:var(--primary);color:var(--fg)}
+.tab-btn.active{background:var(--primary);color:var(--bg);border-color:var(--primary)}
+
+/* Audit toolbar */
+#audit-toolbar{display:none;gap:12px;padding:12px 24px;align-items:center;flex-wrap:wrap}
+#audit-toolbar .filter-group{display:flex;gap:4px}
+#audit-toolbar .filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-weight:500;transition:.2s}
+#audit-toolbar .filter-btn:hover{border-color:var(--primary);color:var(--fg)}
+#audit-toolbar .filter-btn.active{background:var(--primary);color:var(--bg);border-color:var(--primary)}
+#audit-search{flex:1;min-width:200px;padding:8px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--fg);font-size:13px;outline:none}
+#audit-search:focus{border-color:var(--primary)}
+.audit-export-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-weight:500;transition:.2s}
+.audit-export-btn:hover{border-color:var(--primary);color:var(--fg)}
+
+/* Audit layout */
+#audit-layout{display:none;min-height:calc(100vh - 120px)}
+#audit-grid{padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-content:start}
+
+/* Audit cards */
+.audit-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);border-left:4px solid var(--muted);overflow:hidden;cursor:pointer;position:relative;
+  transition:transform .3s ease,box-shadow .3s ease,border-color .3s ease;
+  transform-style:preserve-3d;perspective:800px;animation:card-in .4s ease backwards}
+.audit-card:hover{transform:translateY(-4px) rotateX(2deg);box-shadow:0 12px 32px rgba(0,0,0,.4)}
+.audit-card.sev-critical{border-left-color:#ef4444}
+.audit-card.sev-high{border-left-color:#f97316}
+.audit-card.sev-medium{border-left-color:#eab308}
+.audit-card.sev-low{border-left-color:#6b7280}
+.audit-card-header{padding:12px 14px 8px;display:flex;align-items:flex-start;gap:8px}
+.audit-card-title{font-size:13px;font-weight:600;flex:1}
+.audit-card-badges{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap}
+.audit-badge-sev{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.audit-badge-critical{background:#ef444422;color:#ef4444}
+.audit-badge-high{background:#f9731622;color:#f97316}
+.audit-badge-medium{background:#eab30822;color:#eab308}
+.audit-badge-low{background:#6b728022;color:#6b7280}
+.audit-badge-fix{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.5px}
+.audit-badge-fixed{background:#1a7e4033;color:#4ade80}
+.audit-badge-unfixed{background:#ff6b6b22;color:var(--fail)}
+.audit-badge-cat{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:var(--border);color:var(--muted)}
+.audit-card-file{padding:0 14px 8px;font-size:11px;color:var(--info);word-break:break-all}
+.audit-card-desc{padding:0 14px 12px;font-size:12px;color:var(--muted);display:none}
+.audit-card.expanded .audit-card-desc{display:block}
+.audit-card-id{font-size:10px;color:var(--muted);padding:0 14px 10px}
+
 /* Hide detail panel on narrow screens */
 @media(max-width:768px){
   #sidebar{display:none}
   #grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));padding:12px}
   .lb-detail{display:none}
   .lb-img{max-width:100vw}
+  #audit-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -216,6 +265,10 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
 <div id="header">
   <div class="header-brand">Visual Review</div>
   <div class="header-stats" id="stats"></div>
+  <div class="header-tabs" id="header-tabs">
+    <button class="tab-btn active" id="tab-visual" onclick="switchTab('visual')">Visual Tests</button>
+    <button class="tab-btn" id="tab-audit" onclick="switchTab('audit')">Code Audit</button>
+  </div>
   <div class="header-meta" id="meta"></div>
 </div>
 
@@ -229,6 +282,17 @@ body{background:var(--bg);color:var(--fg);font-family:'DM Sans',system-ui,sans-s
 <div id="layout">
   <nav id="sidebar"><ul id="cat-list"></ul></nav>
   <main id="grid"></main>
+</div>
+
+<div id="audit-toolbar" style="display:none">
+  <div class="filter-group" id="audit-sev-filters"></div>
+  <div class="filter-group" id="audit-cat-filters"></div>
+  <input type="search" id="audit-search" placeholder="Search bugs...">
+  <button class="audit-export-btn" id="audit-export-csv">Export CSV</button>
+</div>
+
+<div id="audit-layout" style="display:none">
+  <main id="audit-grid"></main>
 </div>
 
 <div id="action-bar">
@@ -1027,8 +1091,253 @@ var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
     renderGrid();
   });
 
+  // ── Audit Tab ──
+  var activeTab = 'visual';
+  var auditSevFilter = 'all';
+  var auditCatFilter = 'all';
+  var auditQuery = '';
+
+  var SEV_COLORS = {critical:'#ef4444', high:'#f97316', medium:'#eab308', low:'#6b7280'};
+  var SEV_ORDER = ['critical','high','medium','low'];
+
+  function switchTab(tab) {
+    activeTab = tab;
+    var layout = document.getElementById('layout');
+    var toolbar = document.getElementById('toolbar');
+    var auditLayout = document.getElementById('audit-layout');
+    var auditToolbar = document.getElementById('audit-toolbar');
+    var actionBar = document.getElementById('action-bar');
+    var tabVisual = document.getElementById('tab-visual');
+    var tabAudit = document.getElementById('tab-audit');
+    if (tab === 'visual') {
+      layout.style.display = 'flex';
+      toolbar.style.display = 'flex';
+      auditLayout.style.display = 'none';
+      auditToolbar.style.display = 'none';
+      actionBar.style.display = '';
+      tabVisual.classList.add('active');
+      tabAudit.classList.remove('active');
+      renderStats();
+    } else {
+      layout.style.display = 'none';
+      toolbar.style.display = 'none';
+      auditLayout.style.display = 'block';
+      auditToolbar.style.display = 'flex';
+      actionBar.style.display = 'none';
+      tabVisual.classList.remove('active');
+      tabAudit.classList.add('active');
+      renderAuditStats();
+    }
+  }
+  // Expose for inline onclick
+  window.switchTab = switchTab;
+
+  function renderAuditStats() {
+    if (!D.audit) return;
+    var s = D.audit.summary;
+    var el = document.getElementById('stats');
+    el.textContent = '';
+    var items = [
+      ['stat-total', s.total_bugs + ' bugs'],
+      ['audit-badge-critical', s.by_severity.critical + ' critical'],
+      ['audit-badge-high', s.by_severity.high + ' high'],
+      ['audit-badge-medium', s.by_severity.medium + ' medium'],
+      ['audit-badge-low', s.by_severity.low + ' low']
+    ];
+    items.forEach(function(item) {
+      var span = document.createElement('span');
+      span.className = 'stat ' + item[0];
+      span.textContent = item[1];
+      el.appendChild(span);
+    });
+    // Fixed count
+    var fixedCount = D.audit.bugs.filter(function(b){return b.fix_applied;}).length;
+    var fixSpan = document.createElement('span');
+    fixSpan.className = 'stat stat-pass';
+    fixSpan.textContent = fixedCount + ' fixed';
+    el.appendChild(fixSpan);
+
+    var metaEl = document.getElementById('meta');
+    metaEl.textContent = s.files_audited + ' files audited, ' + s.files_modified + ' modified';
+  }
+
+  function renderAuditFilters() {
+    if (!D.audit) return;
+    var sevEl = document.getElementById('audit-sev-filters');
+    var catEl = document.getElementById('audit-cat-filters');
+    sevEl.textContent = '';
+    catEl.textContent = '';
+
+    // Severity filters
+    var sevs = ['all'].concat(SEV_ORDER);
+    sevs.forEach(function(sev) {
+      var btn = document.createElement('button');
+      btn.className = 'filter-btn' + (sev === auditSevFilter ? ' active' : '');
+      btn.textContent = sev === 'all' ? 'All severities' : sev;
+      btn.addEventListener('click', function() { filterAuditSeverity(sev); });
+      sevEl.appendChild(btn);
+    });
+
+    // Category filters — build from data
+    var cats = Object.keys(D.audit.summary.by_category).sort();
+    var catList = ['all'].concat(cats);
+    catList.forEach(function(cat) {
+      var btn = document.createElement('button');
+      btn.className = 'filter-btn' + (cat === auditCatFilter ? ' active' : '');
+      btn.textContent = cat === 'all' ? 'All categories' : cat;
+      btn.addEventListener('click', function() { filterAuditCategory(cat); });
+      catEl.appendChild(btn);
+    });
+  }
+
+  function filterAuditSeverity(sev) {
+    auditSevFilter = sev;
+    renderAuditFilters();
+    applyAuditFilters();
+  }
+
+  function filterAuditCategory(cat) {
+    auditCatFilter = cat;
+    renderAuditFilters();
+    applyAuditFilters();
+  }
+
+  function applyAuditFilters() {
+    if (!D.audit) return;
+    var bugs = D.audit.bugs.filter(function(b) {
+      if (auditSevFilter !== 'all' && b.severity !== auditSevFilter) return false;
+      if (auditCatFilter !== 'all' && b.category !== auditCatFilter) return false;
+      if (auditQuery) {
+        var q = auditQuery;
+        if (b.title.toLowerCase().indexOf(q) === -1 &&
+            b.file.toLowerCase().indexOf(q) === -1 &&
+            b.id.toLowerCase().indexOf(q) === -1 &&
+            b.description.toLowerCase().indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    // Sort: critical first, then high, medium, low
+    bugs.sort(function(a, b) {
+      var ai = SEV_ORDER.indexOf(a.severity);
+      var bi = SEV_ORDER.indexOf(b.severity);
+      if (ai !== bi) return ai - bi;
+      return a.file.localeCompare(b.file);
+    });
+    renderAuditGrid(bugs);
+  }
+
+  function renderAuditGrid(bugs) {
+    var grid = document.getElementById('audit-grid');
+    grid.textContent = '';
+    if (!bugs.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'No bugs match the current filters.';
+      grid.appendChild(e);
+      return;
+    }
+    bugs.forEach(function(bug, idx) {
+      var card = document.createElement('div');
+      card.className = 'audit-card sev-' + bug.severity;
+      card.style.animationDelay = (Math.min(idx, 7) * 0.04) + 's';
+
+      // Header row: title + badges
+      var header = document.createElement('div');
+      header.className = 'audit-card-header';
+      var title = document.createElement('div');
+      title.className = 'audit-card-title';
+      title.textContent = bug.title;
+      header.appendChild(title);
+      var badges = document.createElement('div');
+      badges.className = 'audit-card-badges';
+      // Severity badge
+      var sevBadge = document.createElement('span');
+      sevBadge.className = 'audit-badge-sev audit-badge-' + bug.severity;
+      sevBadge.textContent = bug.severity;
+      badges.appendChild(sevBadge);
+      // Fixed/Unfixed badge
+      var fixBadge = document.createElement('span');
+      fixBadge.className = 'audit-badge-fix ' + (bug.fix_applied ? 'audit-badge-fixed' : 'audit-badge-unfixed');
+      fixBadge.textContent = bug.fix_applied ? 'Fixed' : 'Unfixed';
+      badges.appendChild(fixBadge);
+      // Category badge
+      var catBadge = document.createElement('span');
+      catBadge.className = 'audit-badge-cat';
+      catBadge.textContent = bug.category;
+      badges.appendChild(catBadge);
+      header.appendChild(badges);
+      card.appendChild(header);
+
+      // File + line
+      var file = document.createElement('div');
+      file.className = 'audit-card-file';
+      file.textContent = bug.file + ':' + bug.line;
+      card.appendChild(file);
+
+      // Description (hidden until expanded)
+      var desc = document.createElement('div');
+      desc.className = 'audit-card-desc';
+      desc.textContent = bug.description;
+      card.appendChild(desc);
+
+      // Bug ID + commit
+      var idLine = document.createElement('div');
+      idLine.className = 'audit-card-id';
+      var idText = bug.id;
+      if (bug.fix_applied && bug.fix_commit) {
+        idText += ' \u2014 commit: ' + bug.fix_commit;
+      }
+      idLine.textContent = idText;
+      card.appendChild(idLine);
+
+      // Click to expand/collapse description
+      card.addEventListener('click', function() {
+        card.classList.toggle('expanded');
+      });
+
+      grid.appendChild(card);
+    });
+  }
+
+  function exportAuditCSV() {
+    if (!D.audit) return;
+    var rows = [['id','severity','category','file','line','title','description','fix_applied','fix_commit']];
+    function csvEsc(s) { return String(s).replace(/"/g, '""'); }
+    D.audit.bugs.forEach(function(b) {
+      rows.push([
+        csvEsc(b.id), csvEsc(b.severity), csvEsc(b.category), csvEsc(b.file), String(b.line),
+        csvEsc(b.title), csvEsc(b.description), b.fix_applied ? 'true' : 'false', csvEsc(b.fix_commit || '')
+      ]);
+    });
+    var csv = rows.map(function(r) {
+      return r.map(function(cell) { return '"' + cell + '"'; }).join(',');
+    }).join('\n');
+    var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'audit-bugs-' + Date.now() + '.csv';
+    a.click();
+    showToast('CSV downloaded');
+  }
+
+  function initAuditTab() {
+    if (!D.audit) return;
+    // Show tab buttons
+    document.getElementById('header-tabs').classList.add('visible');
+    // Wire search
+    document.getElementById('audit-search').addEventListener('input', function(e) {
+      auditQuery = e.target.value.toLowerCase();
+      applyAuditFilters();
+    });
+    // Wire CSV export
+    document.getElementById('audit-export-csv').addEventListener('click', exportAuditCSV);
+    // Initial render of filters and grid
+    renderAuditFilters();
+    applyAuditFilters();
+  }
+
   // ── Init ──
-  renderStats(); renderFilters(); renderSidebar(); renderGrid(); initAnnotation();
+  renderStats(); renderFilters(); renderSidebar(); renderGrid(); initAnnotation(); initAuditTab();
 })(__VISUAL_DATA__);
 </script>
 </body>
