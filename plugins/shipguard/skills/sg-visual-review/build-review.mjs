@@ -180,6 +180,8 @@ function writeMonitorData() {
 
 function recalcTotals() {
   if (!monitorState) return;
+  const startMs = new Date(monitorState.started_at).getTime();
+  if (isNaN(startMs)) return;
   const agents = monitorState.agents;
   let tokens = 0, cost = 0, toolUses = 0, bugs = 0, files = 0;
   for (const a of agents) {
@@ -190,7 +192,6 @@ function recalcTotals() {
     files += a.files_audited || 0;
   }
   const now = Date.now();
-  const startMs = new Date(monitorState.started_at).getTime();
   monitorState.totals = {
     tokens,
     estimated_cost_usd: Math.round(cost * 100) / 100,
@@ -207,9 +208,11 @@ function parseJsonBody(req, res, maxBytes) {
   return new Promise((resolve, reject) => {
     let body = '';
     let size = 0;
+    let done = false;
     req.on('data', chunk => {
       size += chunk.length;
       if (size > maxBytes) {
+        done = true;
         req.destroy();
         res.writeHead(413, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Payload too large' }));
@@ -219,6 +222,7 @@ function parseJsonBody(req, res, maxBytes) {
       body += chunk;
     });
     req.on('end', () => {
+      if (done) return;
       try { resolve(JSON.parse(body)); }
       catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -528,6 +532,7 @@ if (process.argv.includes('--serve')) {
 
   const MIME = { '.html': 'text/html', '.png': 'image/png', '.jpg': 'image/jpeg', '.json': 'application/json', '.css': 'text/css', '.js': 'text/javascript' };
   const PORT = parseInt(process.argv.find(a => a.startsWith('--port='))?.split('=')[1] || '8888');
+  if (isNaN(PORT) || PORT < 1 || PORT > 65535) { console.error('Invalid port'); process.exit(1); }
 
   const server = http.createServer(async (req, res) => {
     // POST /save-manifest — save fix manifest from review page
@@ -597,7 +602,7 @@ if (process.argv.includes('--serve')) {
           scope_ref: data.scope_ref || null,
           started_at: data.timestamp || new Date().toISOString(),
           ended_at: null,
-          agents: (data.zones || []).map(z => ({
+          agents: (data.zones || []).filter(z => z.zone_id).map(z => ({
             agent_id: 'r1:' + z.zone_id,
             zone_id: z.zone_id,
             paths: z.paths || [],
@@ -629,6 +634,11 @@ if (process.argv.includes('--serve')) {
       try {
         const data = await parseJsonBody(req, res, 1024 * 1024);
         if (!data) return;
+        if (!data.agent_id) {
+          res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ error: 'agent_id required' }));
+          return;
+        }
         if (!monitorState) {
           res.writeHead(409, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           res.end(JSON.stringify({ error: 'No audit in progress' }));
