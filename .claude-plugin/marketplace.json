@@ -1,5 +1,5 @@
 {
-  "name": "agentic-visual-debugger",
+  "name": "shipguard",
   "owner": {
     "name": "Loic Baconnier",
     "url": "https://github.com/bacoco"
@@ -8,9 +8,9 @@
     {
       "name": "shipguard",
       "description": "AI-powered code audit + visual E2E testing. Zero tests written.",
-      "source": "./plugins/agentic-visual-debugger",
+      "source": "./plugins/shipguard",
       "category": "testing",
-      "homepage": "https://github.com/bacoco/agentic-visual-debugger"
+      "homepage": "https://github.com/bacoco/shipguard"
     }
   ]
 }

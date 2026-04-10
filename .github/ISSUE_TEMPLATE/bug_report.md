@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a problem with agentic-visual-debugger
+about: Report a problem with ShipGuard
 labels: bug
 ---
 
