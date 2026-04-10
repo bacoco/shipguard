@@ -49,10 +49,10 @@ shipguard/                              (GitHub repo)
 │   ├── architecture.md                 (rewrite of design-spec.md)
 │   ├── product-roadmap.md              (rewrite of PRD-product-readiness.md)
 │   ├── screenshots/                    (recaptured)
-│   │   ├── hero.png
-│   │   ├── code-audit-tab.png
-│   │   ├── visual-tests-tab.png
-│   │   ├── lightbox.png
+│   │   ├── hero-banner.jpg
+│   │   ├── code-audit-bugs.png
+│   │   ├── visual-tests-grid.png
+│   │   ├── annotation-with-note.png
 │   │   └── discover-output.png
 │   ├── specs/
 │   │   ├── 2026-04-10-code-audit-design.md
@@ -134,13 +134,13 @@ New content:
 
 ## Screenshots to Recapture
 
-Use agent-browser + build-review.mjs with test data. 5 screenshots:
+Captured via agent-browser + build-review.mjs with test data. 5 screenshots (actual filenames):
 
-1. **hero.png** — Code Audit tab with 4+ bug cards, severity colors visible
-2. **code-audit-tab.png** — closer view of audit cards with filters active
-3. **visual-tests-tab.png** — screenshot grid with pass/fail badges
-4. **lightbox.png** — lightbox open with annotation tools
-5. **discover-output.png** — terminal output of `/sg-visual-discover`
+1. **hero-banner.jpg** — Gemini-generated hero image (compressed from 7.2MB to 212KB)
+2. **code-audit-bugs.png** — Code Audit tab with 8 bug cards, severity colors, filters
+3. **visual-tests-grid.png** — screenshot grid with 3 tests, real thumbnails, PASS/FAIL badges
+4. **annotation-with-note.png** — lightbox with drawn rectangle + text note describing the problem
+5. **discover-output.png** — terminal output of `/sg-visual-discover` showing 24 routes, smart scope
 
 Screenshots go to `docs/screenshots/` (not `docs/` root). Old images at `docs/*.png` are deleted.
 

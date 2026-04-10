@@ -42,6 +42,8 @@ Before running any visual test, ShipGuard scans your entire application: routes,
 
 This is the foundation: without discovery, you don't know what your app looks like. With discovery, you have a complete map of every testable page.
 
+![Discover — scan routes and generate test manifests](docs/screenshots/discover-output.png)
+
 ### Step 3 -- Run visual tests
 
 ```
