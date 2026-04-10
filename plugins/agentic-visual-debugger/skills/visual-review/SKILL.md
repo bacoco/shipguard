@@ -1,6 +1,6 @@
 ---
 name: visual-review
-description: Generate an interactive HTML screenshot review page from Visual test results. Browse all test screenshots in a grid, filter by status/category, annotate problems with a pen tool, multi-select failed tests, and export re-run manifests. Trigger on "visual review", "review screenshots", "show test results", "review visual", "visual-review", "montre les resultats", "revue des tests".
+description: Generate an interactive HTML screenshot review page from Visual test results. Browse all test screenshots in a grid, filter by status/category, annotate problems with a pen tool, multi-select failed tests, and export re-run manifests. Trigger on "visual review", "review screenshots", "show test results", "review visual", "visual-review", "show results", "test review".
 context: conversation
 argument-hint: "[optional: regenerate | open]"
 ---

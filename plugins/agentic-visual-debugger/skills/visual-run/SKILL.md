@@ -1,6 +1,6 @@
 ---
 name: visual-run
-description: Execute Visual test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "visual run", "run visual tests", "test regressions", "run tests", "visual-run", "check if the app works", "teste le chat", "j'ai modifie X verifie que ca marche".
+description: Execute Visual test manifests using agent-browser with hybrid scripted+LLM assertions. Accepts natural language to describe what to test or what changed — the skill finds and runs the right tests, generating missing ones if needed. Trigger on "visual run", "run visual tests", "test regressions", "run tests", "visual-run", "check if the app works", "I changed X check it still works".
 context: conversation
 argument-hint: "[tests to run or natural language description]"
 ---
@@ -41,23 +41,23 @@ If the user picks "Full suite", run everything.
 When you pass free text, the skill operates in **impact analysis mode**:
 
 ```bash
-/visual-run teste l'upload de PDF et le pipeline
-/visual-run j'ai modifie le sidebar de Harmonia, verifie que tout marche
-/visual-run est-ce que le chat fonctionne avec un document attache ?
-/visual-run j'ai change Header.tsx et ChatView.tsx
+/visual-run test the PDF upload and the pipeline
+/visual-run I changed the sidebar, check everything works
+/visual-run does the chat work with an attached document?
+/visual-run I changed Header.tsx and ChatView.tsx
 ```
 
 **Flow:**
 
 1. **Understand intent** — Parse the natural language to identify:
    - Pages/features/components mentioned
-   - Whether it references recent code changes (check `git diff` if the user says "j'ai modifie", "je viens de changer", etc.)
+   - Whether it references recent code changes (check `git diff` if the user says "I changed", "I just modified", etc.)
    - The scope: a specific feature, a page, a whole section
 
 2. **Find impacted tests** — Read all manifest YAML files (name, description, tags) and match against the user's intent:
    - Text mentions "upload" → match manifests about upload
-   - Text mentions "Harmonia" → match all harmonia/ manifests
-   - Text mentions a file like "ArticleModal.tsx" → find which routes/components use it → match those manifests
+   - Text mentions "dashboard" → match all dashboard/ manifests
+   - Text mentions a file like "Header.tsx" → find which routes/components use it → match those manifests
 
 3. **Generate missing tests** — If the described scope has no existing test:
    - Invoke `/visual-discover` with a narrow scope on that area (e.g., `/visual-discover --scope=<component-or-route> --depth=1`) to read the component, understand what it does, and produce a manifest skeleton
@@ -73,11 +73,11 @@ When you pass free text, the skill operates in **impact analysis mode**:
 
 | Input | What happens |
 |-------|-------------|
-| `teste l'upload de PDF` | Finds upload-pdf.yaml, runs it |
-| `j'ai modifie le pipeline d'ingestion` | git diff → finds changed files → maps to ingestion tests → runs them |
-| `verifie que le dashboard charge` | Finds dashboard/home.yaml, runs it |
-| `j'ai ajoute un bouton dans le header` | Finds header-related tests, plus generates a new test for the header button if none exists |
-| `est-ce que la page settings fonctionne ?` | Finds settings tests, runs them |
+| `test the PDF upload` | Finds upload-pdf.yaml, runs it |
+| `I changed the ingestion pipeline` | git diff → finds changed files → maps to ingestion tests → runs them |
+| `check the dashboard loads` | Finds dashboard/home.yaml, runs it |
+| `I added a button in the header` | Finds header-related tests, plus generates a new test for the header button if none exists |
+| `does the settings page work?` | Finds settings tests, runs them |
 
 ## Pre-flight
 

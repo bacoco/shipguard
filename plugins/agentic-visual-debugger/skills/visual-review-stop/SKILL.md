@@ -1,6 +1,6 @@
 ---
 name: visual-review-stop
-description: Stop the Visual review HTTP server. Trigger on "visual-review-stop", "stop review server", "arrete le serveur review", "stop html server".
+description: Stop the Visual review HTTP server. Trigger on "visual-review-stop", "stop review server", "stop html server".
 context: conversation
 ---
 
