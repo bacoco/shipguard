@@ -62,6 +62,8 @@ The impacted routes from the audit are opened in a real browser. Each page is sc
 
 One page, three tabs: **Visual Tests** (screenshots), **Code Audit** (bugs), and **Monitor** (live Gantt timeline of agent progress, token usage, and estimated cost). Filter by severity, category, status. Search. Export CSV.
 
+![Monitor — live Gantt timeline of audit agents](docs/screenshots/monitor-tab-gantt.png)
+
 ### Step 5 -- Annotate problems visually
 
 Click any screenshot to open it full-screen. Draw rectangles around broken areas, circle UI problems with the freehand pen, or flag a page for complete redo. Add a text note describing what's wrong.
