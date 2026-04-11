@@ -1,0 +1,301 @@
+/**
+ * recorder-toolbar.css
+ *
+ * Floating toolbar injected into pages during ShipGuard macro recording.
+ * Dark theme, bottom-right corner, 320px wide.
+ * Must not interfere with the page layout (fixed positioning, high z-index).
+ */
+
+/* ── Container ─────────────────────────────────────────────────── */
+
+#sg-recorder {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 999999;
+  width: 320px;
+  background: #1e1b4b;
+  border: 1px solid #6366f1;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(99, 102, 241, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #e2e8f0;
+  transition: width 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+}
+
+#sg-recorder.minimized {
+  width: 180px;
+}
+
+#sg-recorder.minimized .sg-steps,
+#sg-recorder.minimized .sg-actions {
+  display: none;
+}
+
+#sg-recorder.check-mode {
+  border-color: #d97706;
+}
+
+/* ── Header ────────────────────────────────────────────────────── */
+
+.sg-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #312e81;
+  border-radius: 11px 11px 0 0;
+  cursor: move;
+  user-select: none;
+}
+
+#sg-recorder.minimized .sg-header {
+  border-radius: 11px;
+}
+
+/* ── Recording dot ─────────────────────────────────────────────── */
+
+.sg-rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  flex-shrink: 0;
+  animation: sg-pulse 1.5s ease-in-out infinite;
+}
+
+.sg-rec-dot.paused {
+  background: #64748b;
+  animation: none;
+}
+
+@keyframes sg-pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* ── Title + timer ─────────────────────────────────────────────── */
+
+.sg-title {
+  color: #a5b4fc;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sg-timer {
+  color: #64748b;
+  font-size: 11px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ── Minimize button ───────────────────────────────────────────── */
+
+.sg-minimize {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.sg-minimize:hover {
+  color: #a5b4fc;
+}
+
+/* ── Steps list ────────────────────────────────────────────────── */
+
+.sg-steps {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #4338ca #1e1b4b;
+}
+
+.sg-steps::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sg-steps::-webkit-scrollbar-track {
+  background: #1e1b4b;
+}
+
+.sg-steps::-webkit-scrollbar-thumb {
+  background: #4338ca;
+  border-radius: 3px;
+}
+
+/* ── Individual step row ───────────────────────────────────────── */
+
+.sg-step {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  background: #1a1744;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  padding: 4px 6px;
+}
+
+.sg-step.is-check {
+  background: #2d2305;
+  border: 1px solid #854d0e;
+}
+
+.sg-step-icon {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 11px;
+  color: #6ee7b7;
+}
+
+.sg-step.is-check .sg-step-icon {
+  color: #fcd34d;
+}
+
+.sg-step-type {
+  width: 38px;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 11px;
+  color: #6ee7b7;
+  text-transform: uppercase;
+}
+
+.sg-step.is-check .sg-step-type {
+  color: #fcd34d;
+}
+
+.sg-step-detail {
+  flex: 1;
+  color: #94a3b8;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sg-step-del {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 2px;
+  line-height: 1;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.sg-step-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* ── Actions bar ───────────────────────────────────────────────── */
+
+.sg-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: #0f0d2e;
+  border-radius: 0 0 11px 11px;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────── */
+
+.sg-btn {
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.sg-btn-undo {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.sg-btn-undo:hover {
+  background: #475569;
+}
+
+.sg-btn-check {
+  background: #854d0e;
+  color: #fcd34d;
+  border: 1px solid #ca8a04;
+}
+
+.sg-btn-check:hover {
+  background: #a16207;
+}
+
+.sg-btn-check.active {
+  background: #ca8a04;
+  color: #1c1917;
+}
+
+.sg-btn-pause {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.sg-btn-pause:hover {
+  background: #475569;
+}
+
+.sg-btn-stop {
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.sg-btn-stop:hover {
+  background: #ef4444;
+}
+
+/* ── Check-mode overlay & highlight ────────────────────────────── */
+
+.sg-check-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999998;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.sg-check-highlight {
+  position: fixed;
+  z-index: 999997;
+  border: 3px solid #d97706;
+  background: rgba(217, 119, 6, 0.15);
+  pointer-events: none;
+  transition: top 0.1s, left 0.1s, width 0.1s, height 0.1s;
+  border-radius: 4px;
+}
+
+/* ── Empty state ───────────────────────────────────────────────── */
+
+.sg-empty {
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
+  padding: 12px 8px;
+}

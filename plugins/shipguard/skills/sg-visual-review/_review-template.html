@@ -380,6 +380,7 @@ body.light #bug-search{background:var(--surface)}
 <div class="main-tab-bar">
   <button class="main-tab-btn active" id="main-tab-audit" onclick="switchMainTab('audit')">Code Audit <span class="main-tab-badge" id="audit-tab-badge"></span></button>
   <button class="main-tab-btn" id="main-tab-visual" onclick="switchMainTab('visual')">Visual Tests</button>
+  <button class="main-tab-btn" id="main-tab-recorded" onclick="switchMainTab('recorded')">Recorded Tests <span class="main-tab-badge" id="recorded-tab-badge"></span></button>
 </div>
 
 <!-- ════════════════ CODE AUDIT TAB ════════════════ -->
@@ -500,6 +501,41 @@ body.light #bug-search{background:var(--surface)}
 </div>
 </div><!-- /visual-view -->
 
+<!-- ════════════════ RECORDED TESTS TAB ════════════════ -->
+<div id="recorded-view" style="display:none">
+
+  <!-- Toolbar bar -->
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border)">
+    <span id="rec-selection-count" style="font-size:13px;color:var(--muted)">0 selected</span>
+    <div style="flex:1"></div>
+    <button onclick="recSelectAll()" style="padding:6px 14px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--fg);cursor:pointer">Select All</button>
+    <button id="rec-run-btn" onclick="recRunSelected()" style="display:none;padding:6px 14px;font-size:12px;font-weight:600;border-radius:6px;border:none;background:var(--green);color:#fff;cursor:pointer">Run 0 tests</button>
+  </div>
+
+  <!-- Grid container -->
+  <div id="rec-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;padding:24px"></div>
+
+  <!-- Empty state -->
+  <div id="rec-empty" style="display:none;text-align:center;padding:80px 24px;color:var(--muted)">
+    <div style="font-size:48px;margin-bottom:16px">&#127916;</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:var(--fg)">No recorded tests yet</div>
+    <div style="font-size:13px;max-width:400px;margin:0 auto">Use <code style="background:var(--card);padding:2px 6px;border-radius:4px">sg-record</code> to capture user interactions as replayable test manifests.</div>
+  </div>
+
+  <!-- Run command modal -->
+  <div id="rec-run-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:600px;width:90%">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--fg)">Run command</div>
+      <pre id="rec-run-command" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px;color:var(--fg);overflow-x:auto;white-space:pre-wrap;word-break:break-all"></pre>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button onclick="recCopyCommand()" style="padding:6px 14px;font-size:12px;font-weight:600;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer">Copy</button>
+        <button onclick="recCloseModal()" style="padding:6px 14px;font-size:12px;font-weight:600;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--fg);cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /recorded-view -->
+
 <!-- ════════════════ LIGHTBOX ════════════════ -->
 <div id="lightbox">
   <div class="lb-topbar">
@@ -581,6 +617,7 @@ body.light #bug-search{background:var(--surface)}
 
 <script>
 var __VISUAL_DATA__ = "__PLACEHOLDER_VISUAL_DATA__";
+var __RECORDED_DATA__ = "__PLACEHOLDER_RECORDED_DATA__";
 
 // ════════════════ THEME ════════════════
 (function() {
@@ -1560,12 +1597,14 @@ function setTheme(t) {
 
 // ════════════════ MAIN TAB SWITCH ════════════════
 function switchMainTab(tab) {
-  document.getElementById('main-tab-visual').classList.toggle('active', tab === 'visual');
-  document.getElementById('main-tab-audit').classList.toggle('active', tab === 'audit');
-  document.getElementById('visual-view').style.display = tab === 'visual' ? '' : 'none';
-  document.getElementById('audit-view').style.display = tab === 'audit' ? 'block' : 'none';
-  // Legacy alias support
+  ['audit', 'visual', 'recorded'].forEach(function(t) {
+    var btn = document.getElementById('main-tab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+    var view = document.getElementById(t + '-view');
+    if (view) view.style.display = t === tab ? (t === 'visual' ? '' : 'block') : 'none';
+  });
   if (tab === 'audit') loadAuditData();
+  if (tab === 'recorded') renderRecordedGrid();
 }
 
 // backward-compat alias used by old code
@@ -2166,6 +2205,182 @@ function makeBugRow(bug) {
       if (data && data.status === 'running') updateAuditBadge('live');
     }).catch(function(){});
 })();
+
+// ════════════════ RECORDED TESTS ════════════════
+var recSelected = {};
+var recData = __RECORDED_DATA__;
+
+function renderRecordedGrid() {
+  var grid = document.getElementById('rec-grid');
+  var empty = document.getElementById('rec-empty');
+  var badge = document.getElementById('recorded-tab-badge');
+
+  if (!recData || !Array.isArray(recData) || recData.length === 0) {
+    grid.style.display = 'none';
+    empty.style.display = 'block';
+    if (badge) badge.textContent = '';
+    recUpdateBar();
+    return;
+  }
+
+  grid.style.display = 'grid';
+  empty.style.display = 'none';
+  if (badge) {
+    badge.textContent = recData.length;
+    badge.className = 'main-tab-badge';
+  }
+
+  grid.textContent = '';
+  recData.forEach(function(rec) {
+    var isSelected = !!recSelected[rec.id];
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:var(--card);border:1px solid ' + (isSelected ? 'var(--accent)' : 'var(--border)') + ';border-radius:var(--radius);overflow:hidden;cursor:pointer;position:relative;transition:border-color .2s,transform .2s,box-shadow .2s';
+    card.setAttribute('data-id', rec.id);
+
+    // Checkbox (top-right)
+    var check = document.createElement('div');
+    check.style.cssText = 'position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;z-index:1;' + (isSelected ? 'background:var(--accent);color:#fff;border:none' : 'background:transparent;border:1px solid var(--muted);color:transparent');
+    check.textContent = '\u2713';
+    check.addEventListener('click', function(e) { e.stopPropagation(); recToggle(rec.id); });
+    card.appendChild(check);
+
+    // Status badge (top-left, only if status exists)
+    if (rec.status) {
+      var statusBadge = document.createElement('span');
+      var isPass = rec.status.toLowerCase() === 'pass';
+      statusBadge.style.cssText = 'position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;z-index:1;' + (isPass ? 'background:#10b98122;color:var(--green)' : 'background:#ef444422;color:var(--red)');
+      statusBadge.textContent = rec.status;
+      card.appendChild(statusBadge);
+    }
+
+    // Icon area with step count
+    var iconArea = document.createElement('div');
+    iconArea.style.cssText = 'width:100%;height:80px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--secondary);color:var(--muted);font-size:12px;gap:4px;border-bottom:1px solid var(--border)';
+    var iconSteps = document.createElement('div');
+    iconSteps.style.cssText = 'font-size:24px;font-weight:700;color:var(--fg)';
+    var stepCount = rec.stepCount || 0;
+    iconSteps.textContent = stepCount;
+    var iconLabel = document.createElement('div');
+    iconLabel.textContent = 'steps';
+    iconArea.appendChild(iconSteps);
+    iconArea.appendChild(iconLabel);
+    card.appendChild(iconArea);
+
+    // Content area
+    var body = document.createElement('div');
+    body.style.cssText = 'padding:12px';
+
+    var title = document.createElement('div');
+    title.style.cssText = 'font-size:13px;font-weight:600;color:var(--fg);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    title.textContent = rec.name || rec.id || 'Untitled';
+    body.appendChild(title);
+
+    if (rec.summary) {
+      var summary = document.createElement('div');
+      summary.style.cssText = 'font-size:11px;color:var(--muted);margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden';
+      summary.textContent = rec.summary;
+      body.appendChild(summary);
+    }
+
+    // Tags area
+    var tags = document.createElement('div');
+    tags.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px';
+
+    var stepBadge = document.createElement('span');
+    stepBadge.style.cssText = 'padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:var(--secondary);color:var(--muted)';
+    stepBadge.textContent = stepCount + ' steps';
+    tags.appendChild(stepBadge);
+
+    var checkCount = rec.checkCount || 0;
+    if (checkCount > 0) {
+      var checkBadge = document.createElement('span');
+      checkBadge.style.cssText = 'padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:var(--secondary);color:var(--muted)';
+      checkBadge.textContent = checkCount + ' checks';
+      tags.appendChild(checkBadge);
+    }
+
+    if (rec.recordedAt) {
+      var dateBadge = document.createElement('span');
+      dateBadge.style.cssText = 'padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:var(--secondary);color:var(--muted)';
+      dateBadge.textContent = rec.recordedAt;
+      tags.appendChild(dateBadge);
+    }
+
+    body.appendChild(tags);
+    card.appendChild(body);
+
+    card.addEventListener('click', function() { recToggle(rec.id); });
+
+    // Hover effect
+    card.addEventListener('mouseenter', function() { card.style.borderColor = 'var(--accent)'; card.style.transform = 'translateY(-2px)'; card.style.boxShadow = '0 4px 16px rgba(0,0,0,.2)'; });
+    card.addEventListener('mouseleave', function() { card.style.borderColor = isSelected ? 'var(--accent)' : 'var(--border)'; card.style.transform = ''; card.style.boxShadow = ''; });
+
+    grid.appendChild(card);
+  });
+
+  recUpdateBar();
+}
+
+function recToggle(id) {
+  if (recSelected[id]) {
+    delete recSelected[id];
+  } else {
+    recSelected[id] = true;
+  }
+  renderRecordedGrid();
+}
+
+function recSelectAll() {
+  if (!recData || !Array.isArray(recData)) return;
+  var allSelected = recData.length > 0 && recData.every(function(r) { return !!recSelected[r.id]; });
+  if (allSelected) {
+    recSelected = {};
+  } else {
+    recData.forEach(function(r) { recSelected[r.id] = true; });
+  }
+  renderRecordedGrid();
+}
+
+function recUpdateBar() {
+  var keys = Object.keys(recSelected);
+  var count = keys.length;
+  var countEl = document.getElementById('rec-selection-count');
+  var runBtn = document.getElementById('rec-run-btn');
+  if (countEl) countEl.textContent = count + ' selected';
+  if (runBtn) {
+    runBtn.style.display = count > 0 ? '' : 'none';
+    runBtn.textContent = 'Run ' + count + ' test' + (count !== 1 ? 's' : '');
+  }
+}
+
+function recRunSelected() {
+  if (!recData || !Array.isArray(recData)) return;
+  var manifests = [];
+  recData.forEach(function(rec) {
+    if (recSelected[rec.id] && rec.file) {
+      manifests.push('manifests/' + rec.file);
+    }
+  });
+  if (manifests.length === 0) return;
+  var cmd = 'sg-visual-run --manifests ' + manifests.join(' ');
+  var pre = document.getElementById('rec-run-command');
+  if (pre) pre.textContent = cmd;
+  var modal = document.getElementById('rec-run-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function recCopyCommand() {
+  var pre = document.getElementById('rec-run-command');
+  if (pre && navigator.clipboard) {
+    navigator.clipboard.writeText(pre.textContent);
+  }
+}
+
+function recCloseModal() {
+  var modal = document.getElementById('rec-run-modal');
+  if (modal) modal.style.display = 'none';
+}
 </script>
 </body>
 </html>

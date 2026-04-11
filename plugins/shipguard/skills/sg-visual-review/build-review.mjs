@@ -344,8 +344,49 @@ const data = {
 console.log(`  Status: ${passCount} pass, ${failCount} fail, ${staleCount} stale`);
 console.log(`  Screenshots matched: ${tests.filter(t => t.screenshot).length}/${tests.length}`);
 
+// ── Collect recorded manifests ──
+const MANIFESTS_DIR = join(ROOT, 'manifests');
+const recordedTests = [];
+if (existsSync(MANIFESTS_DIR)) {
+  for (const file of readdirSync(MANIFESTS_DIR).filter(f => f.endsWith('.yaml'))) {
+    try {
+      const text = readFileSync(join(MANIFESTS_DIR, file), 'utf8');
+      const manifest = yamlParse(text);
+      if (!manifest.name) continue;
+      const steps = Array.isArray(manifest.steps) ? manifest.steps : [];
+      const stepCount = steps.filter(s => s.action !== 'screenshot').length;
+      const checkCount = steps.filter(s => s.action === 'assert_text' || s.action === 'llm-check').length;
+      const openStep = steps.find(s => s.action === 'open');
+      const testUrl = openStep ? (openStep.url || '').replace('{base_url}', '') : '';
+      const slug = file.replace('.yaml', '');
+      recordedTests.push({
+        id: 'recorded/' + slug,
+        file,
+        name: manifest.name,
+        description: manifest.description || '',
+        source: manifest.source || 'recorded',
+        recordedAt: manifest.recorded_at || null,
+        stepCount,
+        checkCount,
+        url: testUrl,
+        status: null,
+        summary: steps
+          .filter(s => ['open', 'click', 'fill', 'assert_text', 'llm-check', 'upload'].includes(s.action))
+          .slice(0, 5)
+          .map(s => s.action + ': ' + (s.target || s.text || s.url || '').slice(0, 40))
+          .join(' \u2192 '),
+      });
+    } catch (e) {
+      console.warn('  Warning: could not parse ' + file + ': ' + e.message);
+    }
+  }
+  console.log('  Found ' + recordedTests.length + ' recorded manifests');
+}
+
 const template = getHtmlTemplate();
-const html = template.replace('"__PLACEHOLDER_VISUAL_DATA__"', JSON.stringify(data));
+const html = template
+  .replace('"__PLACEHOLDER_VISUAL_DATA__"', JSON.stringify(data))
+  .replace('"__PLACEHOLDER_RECORDED_DATA__"', JSON.stringify(recordedTests));
 writeFileSync(OUTPUT_PATH, html, 'utf8');
 
 console.log(`  Output: ${OUTPUT_PATH}`);
