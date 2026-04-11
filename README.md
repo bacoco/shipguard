@@ -39,73 +39,9 @@ Parallel AI agents scan your entire codebase, find bugs, and **fix them automati
 
 ---
 
-## Code Audit
+## Visual E2E Debugger
 
-Dispatch parallel AI agents to audit your entire codebase. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Watch progress in real-time on the Mission Control dashboard.
-
-```bash
-/sg-code-audit deep
-```
-
-### Modes
-
-| Mode | Agents | Rounds | Coverage |
-|------|--------|--------|----------|
-| quick | 5 | 1 | Surface scan |
-| standard | 10 | 1 | Full codebase (default) |
-| deep | 15 | 2 | Surface + runtime behavior |
-| paranoid | 20 | 3 | Surface + runtime + edge cases & security |
-
-### Multi-round depth
-
-- **R1** — Null refs, missing guards, type mismatches
-- **R2** — Race conditions, async pitfalls, state management
-- **R3** — Edge cases, injection, auth bypass, data leaks
-
-### Smart Scope
-
-By default, ShipGuard detects what changed and asks whether to limit the audit:
-
-```
-/sg-code-audit       # "12 files changed since main. Audit only what changed?"
-```
-
-Override with flags:
-
-| Flag | Effect |
-|------|--------|
-| `--all` | Force full scope, skip the question |
-| `--diff=<ref>` | Use a specific base reference |
-| `--focus=path/` | Restrict to a directory |
-| `--report-only` | Find bugs but do not fix them |
-
-Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only`
-
-### Live Dashboard
-
-At startup, the audit offers to open the Mission Control dashboard. The **Code Audit** tab shows real-time agent pods (running/done/pending), severity heatmap, bug table filterable by severity and free-text search. Polls every 3s during active audit.
-
-![Code Audit — Dark Mode](docs/screenshots/code-audit-dark.jpg)
-
-![Bugs filtered by Critical](docs/screenshots/bugs-critical.jpg)
-
-### Output
-
-Results are written to `audit-results.json`:
-
-- `summary` — totals by severity and category
-- `bugs[]` — file, line, severity, description, fix status
-- `impacted_routes[]` — UI routes affected (consumed by `/sg-visual-run --from-audit`)
-
-### Supported languages
-
-Python, TypeScript/React, Next.js, Infrastructure (Docker/YAML/CI), Go, Rust, JVM.
-
----
-
-## Visual Testing
-
-Agent-browser E2E testing with LLM-powered assertions. Discover routes, generate tests, run them, review screenshots, annotate problems, auto-fix.
+Mark bugs directly on screenshots. The AI traces each annotation to source code and fixes it.
 
 ![Visual Tests — Screenshot Grid](docs/screenshots/visual-tests.jpg)
 
@@ -173,6 +109,68 @@ Supports Next.js (App Router & Pages Router), React Router, Vue, Angular.
 
 ---
 
+## Code Audit
+
+Dispatch parallel AI agents to audit your entire codebase. Each agent reviews a non-overlapping zone, finds bugs, fixes them, and produces structured JSON. Watch progress in real-time on the Mission Control dashboard.
+
+```bash
+/sg-code-audit deep
+```
+
+### Modes
+
+| Mode | Agents | Rounds | Coverage |
+|------|--------|--------|----------|
+| quick | 5 | 1 | Surface scan |
+| standard | 10 | 1 | Full codebase (default) |
+| deep | 15 | 2 | Surface + runtime behavior |
+| paranoid | 20 | 3 | Surface + runtime + edge cases & security |
+
+### Multi-round depth
+
+- **R1** — Null refs, missing guards, type mismatches
+- **R2** — Race conditions, async pitfalls, state management
+- **R3** — Edge cases, injection, auth bypass, data leaks
+
+### Smart Scope
+
+By default, ShipGuard detects what changed and asks whether to limit the audit:
+
+```
+/sg-code-audit       # "12 files changed since main. Audit only what changed?"
+```
+
+Override with flags:
+
+| Flag | Effect |
+|------|--------|
+| `--all` | Force full scope, skip the question |
+| `--diff=<ref>` | Use a specific base reference |
+| `--focus=path/` | Restrict to a directory |
+| `--report-only` | Find bugs but do not fix them |
+
+Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only`
+
+### Live Dashboard
+
+At startup, the audit offers to open the Mission Control dashboard. The **Code Audit** tab shows real-time agent pods (running/done/pending), severity heatmap, bug table filterable by severity and free-text search. Polls every 3s during active audit.
+
+![Code Audit — Bugs filtered by Critical](docs/screenshots/code-audit-dark.jpg)
+
+### Output
+
+Results are written to `audit-results.json`:
+
+- `summary` — totals by severity and category
+- `bugs[]` — file, line, severity, description, fix status
+- `impacted_routes[]` — UI routes affected (consumed by `/sg-visual-run --from-audit`)
+
+### Supported languages
+
+Python, TypeScript/React, Next.js, Infrastructure (Docker/YAML/CI), Go, Rust, JVM.
+
+---
+
 ## Compatibility
 
 Built for **Claude Code**. Partial support for other AI CLIs:
@@ -180,7 +178,7 @@ Built for **Claude Code**. Partial support for other AI CLIs:
 | Feature | Claude Code | Codex CLI / Gemini CLI |
 |---------|------------|----------------------|
 | Code Audit (parallel) | ✅ Full | ❌ Requires Agent tool |
-| Visual Testing | ✅ Full | ✅ agent-browser is CLI-independent |
+| Visual E2E Debugger | ✅ Full | ✅ agent-browser is CLI-independent |
 | Review Dashboard | ✅ Full | ✅ Pure Node.js |
 | Visual Discover/Fix | ✅ Full | ✅ Bash + LLM prompts |
 
