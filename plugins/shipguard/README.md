@@ -2,12 +2,17 @@
 
 ![ShipGuard — Agentic AI Audit & Visual Regression](hero.jpg)
 
-**AI-powered code audit + visual testing for Claude Code.**
+**Ship with confidence.** ShipGuard finds bugs before your users do.
 
-Two independent superpowers. Use one or both.
+Two AI-powered modules. Use one or both. No test files to write.
 
-> ⚠️ **Token Usage**
-> Code audits are token-intensive. A `standard` audit (10 agents) on a medium codebase uses ~2M tokens. `deep` (15 agents, 2 rounds) can use 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M tokens. Monitor your usage.
+| | 🔍 **Code Audit** | 📸 **Visual Regression** |
+|---|---|---|
+| **What** | Parallel AI agents scan your codebase, find bugs, fix them | AI navigates your app in a real browser, screenshots, annotate + auto-fix |
+| **Command** | `/sg-code-audit` | `/sg-visual-run` |
+| **Output** | Bug report + auto-fixes + Mission Control dashboard | Screenshots + draggable annotation cards + auto-fix from annotations |
+
+> ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 
 ---
 
