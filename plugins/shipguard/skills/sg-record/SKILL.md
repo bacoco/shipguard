@@ -115,7 +115,7 @@ steps:
     target: "Se connecter"
 
   - action: assert_text
-    text: "Tableau de bord"
+    expected: "Tableau de bord"
     screenshot: "login-flow-check-1.png"
 
   - action: screenshot
@@ -141,38 +141,121 @@ Playwright opens a fresh Chromium — the user is not logged in by default.
 - **With `--storage auth.json`**: Load saved cookies/localStorage to skip login.
 - **First time**: Use `--save-storage auth.json` to capture auth state after logging in. Reuse with `--storage auth.json` on subsequent recordings.
 
-## Pre-flight Checks
+## Execution Steps for the Skill
 
-Before recording, verify:
+When the user invokes `/sg-record`, follow ALL steps in order. Do NOT skip any step.
 
-1. **Target URL is reachable**: `curl -s -o /dev/null -w "%{http_code}" <url>` returns 200
-2. **Playwright is installed**: `npx playwright --version` succeeds. If not: `npx playwright install chromium`
-3. **Manifests directory exists**: `visual-tests/manifests/` (created automatically)
-4. **Config exists**: `visual-tests/_config.yaml` for `base_url` (optional — falls back to the URL argument)
+### Step 1: Parse arguments
 
-## File Structure
+Parse the URL from the user's input. If missing, ask: "What URL do you want to record on?"
+Store any flags: `--name`, `--storage`, `--save-storage`.
+
+### Step 2: Bootstrap — Install recorder files into the project
+
+The recorder runtime files ship with this plugin. They must be copied to the target project's `visual-tests/` directory before first use.
+
+**Determine the plugin skill directory.** This is the directory containing THIS SKILL.md file. It is shown in the "Base directory for this skill" header when the skill loads. Store it as `SKILL_DIR`.
+
+**Check if recorder is already installed:**
+
+```bash
+test -f visual-tests/sg-record.mjs && echo "INSTALLED" || echo "NOT_INSTALLED"
+```
+
+**If NOT_INSTALLED**, copy all recorder files from the plugin:
+
+```bash
+mkdir -p visual-tests/lib visual-tests/manifests
+
+# Copy from this skill's directory (SKILL_DIR)
+cp "${SKILL_DIR}/sg-record.mjs" visual-tests/
+cp "${SKILL_DIR}/lib/actions-to-yaml.mjs" visual-tests/lib/
+cp "${SKILL_DIR}/lib/recorder-toolbar.js" visual-tests/lib/
+cp "${SKILL_DIR}/lib/recorder-toolbar.css" visual-tests/lib/
+cp "${SKILL_DIR}/lib/actions-to-yaml.test.mjs" visual-tests/lib/
+cp "${SKILL_DIR}/lib/integration-test.mjs" visual-tests/lib/
+```
+
+**Also check the review page files** (needed for the Recorded Tests tab):
+
+```bash
+test -f visual-tests/build-review.mjs && echo "REVIEW_INSTALLED" || echo "REVIEW_NOT_INSTALLED"
+```
+
+If REVIEW_NOT_INSTALLED, copy from the sg-visual-review skill:
+
+```bash
+REVIEW_DIR="${SKILL_DIR}/../sg-visual-review"
+cp "${REVIEW_DIR}/build-review.mjs" visual-tests/
+cp "${REVIEW_DIR}/_review-template.html" visual-tests/
+```
+
+Print: `Recorder files installed to visual-tests/`
+
+### Step 3: Check Playwright
+
+```bash
+npx playwright --version 2>/dev/null
+```
+
+If the command fails, install Playwright:
+
+```bash
+npx playwright install chromium
+```
+
+If that also fails, tell the user: "Playwright is required for the recorder. Run: `npx playwright install chromium`" and stop.
+
+### Step 4: Check target URL is reachable
+
+```bash
+curl -s -o /dev/null -w "%{http_code}" --max-time 5 <url>
+```
+
+If not 200, warn the user but continue (they may want to record on a page that requires auth).
+
+### Step 5: Create config if missing
+
+If `visual-tests/_config.yaml` does not exist, create a minimal one:
+
+```bash
+cat > visual-tests/_config.yaml << EOF
+base_url: "<url_origin>"
+EOF
+```
+
+Where `<url_origin>` is extracted from the user's URL (e.g., `http://localhost:3000` from `http://localhost:3000/dashboard`).
+
+### Step 6: Launch the recorder
+
+```bash
+node visual-tests/sg-record.mjs <url> <flags>
+```
+
+Tell the user: "Browser is open. Navigate your app, click Check to mark verifications, click Stop when done."
+
+### Step 7: Wait and report
+
+Wait for the process to complete (the user clicks Stop in the browser toolbar).
+
+Report: manifest path, step count, and the command to replay.
+
+Offer: "Want to run these tests now with `/sg-visual-run`? Or see all recordings with `/sg-visual-review`?"
+
+## File Structure (after bootstrap)
 
 ```
 visual-tests/
-  sg-record.mjs              # CLI entry point
+  sg-record.mjs              # CLI entry point (copied from plugin)
   lib/
-    recorder-toolbar.js       # Injected toolbar (client-side)
-    recorder-toolbar.css      # Toolbar styles
-    actions-to-yaml.mjs       # Conversion: actions → YAML
-    actions-to-yaml.test.mjs  # Unit tests (11 tests)
-    integration-test.mjs      # Pipeline smoke test
+    recorder-toolbar.js       # Injected toolbar (copied from plugin)
+    recorder-toolbar.css      # Toolbar styles (copied from plugin)
+    actions-to-yaml.mjs       # Conversion: actions → YAML (copied from plugin)
+    actions-to-yaml.test.mjs  # Unit tests — 11 tests (copied from plugin)
+    integration-test.mjs      # Pipeline smoke test (copied from plugin)
   manifests/
-    recorded-*.yaml           # Output from recordings
+    recorded-*.yaml           # Output from recordings (user-generated)
+  build-review.mjs            # Review page builder (from sg-visual-review)
+  _review-template.html       # Review page template (from sg-visual-review)
+  _config.yaml                # Project config (base_url, credentials)
 ```
-
-## Execution Steps for the Skill
-
-When the user invokes `/sg-record`:
-
-1. Parse the URL argument. If missing, ask with AskUserQuestion: "What URL do you want to record on?"
-2. Run pre-flight checks (URL reachable, Playwright installed)
-3. Execute: `node visual-tests/sg-record.mjs <url> <flags>`
-4. Tell the user: "Browser is open. Navigate, click Check to mark verifications, click Stop when done."
-5. Wait for the process to complete (the user clicks Stop in the browser)
-6. Report: manifest path, step count, and the command to replay
-7. Offer: "Want to run these tests now with `/sg-visual-run`?"
