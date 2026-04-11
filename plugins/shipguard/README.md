@@ -4,13 +4,13 @@
 
 **Ship with confidence.** ShipGuard finds bugs before your users do.
 
-Two AI-powered modules. Use one or both. No test files to write.
+Three AI-powered modules. Use one, two, or all three. No test files to write.
 
-| | 📸 **Visual E2E Debugger** | 🔍 **Code Audit** |
-|---|---|---|
-| **What** | Mark bugs directly on screenshots of your UI — AI traces to source code and fixes automatically | Parallel AI agents scan your codebase, find bugs, fix them |
-| **Command** | `/sg-visual-run` | `/sg-code-audit` |
-| **Output** | Screenshots + draggable annotation cards + auto-fix from annotations | Bug report + auto-fixes + Mission Control dashboard |
+| | 📸 **Visual E2E Debugger** | 🎬 **Macro Recorder** | 🔍 **Code Audit** |
+|---|---|---|---|
+| **What** | Auto-discover routes, generate tests, mark bugs on screenshots — AI fixes the code | Record your browser interactions and turn them into replayable tests | Parallel AI agents scan your codebase, find bugs, fix them |
+| **Command** | `/sg-visual-run` | `/sg-record` | `/sg-code-audit` |
+| **Output** | Screenshots + annotation cards + auto-fix | YAML test manifests + test library cards | Bug report + auto-fixes + Mission Control dashboard |
 
 ### Install
 
@@ -38,6 +38,7 @@ Mark bugs directly on screenshots. The AI traces each annotation to source code 
 | Command | What it does |
 |---------|-------------|
 | `/sg-visual-discover` | Scan codebase, generate YAML test manifests per route |
+| `/sg-record <url>` | Record browser interactions as replayable test manifests |
 | `/sg-visual-run [what]` | Execute manifests — natural language or flags |
 | `/sg-visual-review` | Launch interactive screenshot review dashboard |
 | `/sg-visual-fix` | Auto-fix bugs annotated in the review dashboard |
@@ -90,6 +91,55 @@ The review dashboard uses **draggable annotation cards** to mark visual bugs on 
 ```
 
 Supports Next.js (App Router & Pages Router), React Router, Vue, Angular.
+
+---
+
+## Macro Recorder
+
+Record what you do in the browser and turn it into a replayable test. Like Excel's macro recorder, but for visual testing.
+
+![Recorded Tests — Test Library](screenshots/recorded-tests-grid.jpg)
+
+```bash
+/sg-record http://localhost:3000/dashboard --name my-test
+```
+
+### How it works
+
+1. **Launch** — Opens a Playwright browser with a floating toolbar
+2. **Navigate** — Browse your app normally. Clicks, inputs, uploads are captured automatically
+3. **Check** — Click the Check button, then click an element to mark it as an assertion
+4. **Undo / Delete / Pause** — Fix mistakes without restarting
+5. **Stop** — Saves a YAML manifest ready for `/sg-visual-run`
+
+### Test Library
+
+Recorded tests appear as cards in the review dashboard under the **Recorded Tests** tab.
+
+![Recorded Tests — Selected for Run](screenshots/recorded-tests-selected.jpg)
+
+Select the tests you want to run, click **Run** — the command is ready to copy.
+
+![Recorded Tests — Run Command](screenshots/recorded-tests-run.jpg)
+
+### Two ways to create tests
+
+| | `/sg-visual-discover` | `/sg-record` |
+|---|---|---|
+| **Source** | AI scans your code | Human records interactions |
+| **When** | After code changes | After manual QA, bug reproduction, new feature walkthrough |
+| **Output** | Same YAML format | Same YAML format |
+
+Both feed into the same pipeline: `sg-visual-run` executes them, `sg-visual-review` shows results, `sg-visual-fix` fixes failures.
+
+### Options
+
+```bash
+/sg-record http://localhost:3000                              # Interactive — asks for name on stop
+/sg-record http://localhost:3000 --name login-flow            # Preset name
+/sg-record http://localhost:3000 --storage auth.json          # Skip login (reuse saved auth)
+/sg-record http://localhost:3000 --save-storage auth.json     # Save auth for future recordings
+```
 
 ---
 
@@ -163,6 +213,7 @@ Built for **Claude Code**. Partial support for other AI CLIs:
 |---------|------------|----------------------|
 | Code Audit (parallel) | ✅ Full | ❌ Requires Agent tool |
 | Visual E2E Debugger | ✅ Full | ✅ agent-browser is CLI-independent |
+| Macro Recorder | ✅ Full | ✅ Playwright is CLI-independent |
 | Review Dashboard | ✅ Full | ✅ Pure Node.js |
 | Visual Discover/Fix | ✅ Full | ✅ Bash + LLM prompts |
 
@@ -182,7 +233,10 @@ npm install -g agent-browser && agent-browser install --with-deps
 # Audit your code
 /sg-code-audit
 
-# Test your UI
+# Record a test manually
+/sg-record http://localhost:3000
+
+# Run all tests
 /sg-visual-run
 ```
 
