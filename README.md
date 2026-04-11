@@ -33,6 +33,13 @@ Parallel AI agents scan your entire codebase, find bugs, and **fix them automati
 </tr>
 </table>
 
+### Install
+
+```bash
+claude plugin add bacoco/shipguard
+npm install -g agent-browser && agent-browser install --with-deps
+```
+
 ![Smart Annotations](docs/screenshots/smart-annotations.jpg) ![Code Audit Dashboard](docs/screenshots/code-audit-dark.jpg)
 
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.

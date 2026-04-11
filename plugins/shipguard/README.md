@@ -12,6 +12,13 @@ Two AI-powered modules. Use one or both. No test files to write.
 | **Command** | `/sg-visual-run` | `/sg-code-audit` |
 | **Output** | Screenshots + draggable annotation cards + auto-fix from annotations | Bug report + auto-fixes + Mission Control dashboard |
 
+### Install
+
+```bash
+claude plugin add bacoco/shipguard
+npm install -g agent-browser && agent-browser install --with-deps
+```
+
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 
 ---
