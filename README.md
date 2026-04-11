@@ -10,6 +10,17 @@ Two AI-powered modules. Use one or both. No test files to write.
 <tr>
 <td width="50%" valign="top">
 
+### 📸 Visual E2E Debugger
+
+AI navigates your app in a real browser, screenshots every page, and lets you **annotate bugs with draggable cards**. Then it traces each annotation to source code and **fixes it automatically**.
+
+```
+/sg-visual-run
+```
+
+</td>
+<td width="50%" valign="top">
+
 ### 🔍 Code Audit
 
 Parallel AI agents scan your entire codebase, find bugs, and **fix them automatically**. Race conditions, auth gaps, silent exceptions, resource leaks — across Python, TypeScript, Go, Rust, and more.
@@ -19,21 +30,10 @@ Parallel AI agents scan your entire codebase, find bugs, and **fix them automati
 ```
 
 </td>
-<td width="50%" valign="top">
-
-### 📸 Visual Regression
-
-AI navigates your app in a real browser, takes screenshots, and lets you **annotate problems with draggable cards**. Then it traces your annotations to source code and fixes them.
-
-```
-/sg-visual-run
-```
-
-</td>
 </tr>
 </table>
 
-![Code Audit Dashboard](docs/screenshots/code-audit-dark.jpg) ![Smart Annotations](docs/screenshots/smart-annotations.jpg)
+![Smart Annotations](docs/screenshots/smart-annotations.jpg) ![Code Audit Dashboard](docs/screenshots/code-audit-dark.jpg)
 
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 

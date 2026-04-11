@@ -6,11 +6,11 @@
 
 Two AI-powered modules. Use one or both. No test files to write.
 
-| | 🔍 **Code Audit** | 📸 **Visual Regression** |
+| | 📸 **Visual E2E Debugger** | 🔍 **Code Audit** |
 |---|---|---|
-| **What** | Parallel AI agents scan your codebase, find bugs, fix them | AI navigates your app in a real browser, screenshots, annotate + auto-fix |
-| **Command** | `/sg-code-audit` | `/sg-visual-run` |
-| **Output** | Bug report + auto-fixes + Mission Control dashboard | Screenshots + draggable annotation cards + auto-fix from annotations |
+| **What** | AI navigates your app in a real browser, screenshots every page, annotate bugs + auto-fix | Parallel AI agents scan your codebase, find bugs, fix them |
+| **Command** | `/sg-visual-run` | `/sg-code-audit` |
+| **Output** | Screenshots + draggable annotation cards + auto-fix from annotations | Bug report + auto-fixes + Mission Control dashboard |
 
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 
