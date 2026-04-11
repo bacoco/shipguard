@@ -48,7 +48,7 @@ export function actionsToYaml(actions, opts) {
 
   // Determine requires_auth: false only when the first open action points to /login
   const firstOpen = actions.find(a => a.type === 'open');
-  const firstPath = firstOpen ? stripBase(firstOpen.url, baseUrl) : '/';
+  const firstPath = firstOpen ? stripBase(firstOpen.url || '', baseUrl) : '/';
   const requiresAuth = !firstPath.startsWith('/login');
 
   // Build header
@@ -122,7 +122,7 @@ export function actionsToYaml(actions, opts) {
         if (text.length > LLM_CHECK_THRESHOLD) {
           lines.push(`  - action: llm-check`);
           lines.push(`    description: "Verify element content"`);
-          lines.push(`    criteria: "The ${action.elementTag || 'element'} should contain text similar to: ${escYaml(text.slice(0, 120))}..."`);
+          lines.push(`    criteria: "The ${escYaml(action.elementTag || 'element')} should contain text similar to: ${escYaml(text.slice(0, 120))}..."`);
           lines.push(`    severity: medium`);
         } else {
           lines.push(`  - action: assert_text`);

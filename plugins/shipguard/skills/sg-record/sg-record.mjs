@@ -57,6 +57,8 @@ const toolbarJS = rawJS.replace("'__CSS_PLACEHOLDER__'", '`' + toolbarCSS.replac
 
 /* ── Read base_url from config (fallback to URL arg) ────────────── */
 
+// baseUrl is used only for stripping prefixes in YAML output.
+// The CLI url argument is always used for page.goto().
 let baseUrl = url;
 try {
   const configPath = join(__dirname, '_config.yaml');
@@ -212,8 +214,8 @@ async function main() {
       const state = await context.storageState();
       writeFileSync(saveStorageArg, JSON.stringify(state, null, 2));
       console.log(`  Auth state saved to ${saveStorageArg}`);
-    } catch (_) {
-      // Context may already be closed
+    } catch (e) {
+      console.error('  Warning: could not save auth state:', e.message);
     }
   }
 
@@ -236,6 +238,7 @@ async function main() {
     name = await askQuestion('  Manifest name: ');
     if (!name) name = 'untitled';
   }
+  name = name.replace(/[\/\\:*?"<>|]/g, '-');
 
   // Generate YAML
   const yaml = actionsToYaml(allSteps, { name, baseUrl });

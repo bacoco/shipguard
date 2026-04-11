@@ -16,12 +16,13 @@
   /* ── Inject styles ─────────────────────────────────────────── */
   var style = document.createElement('style');
   style.textContent = '__CSS_PLACEHOLDER__';
-  document.head.appendChild(style);
+  (document.head || document.documentElement).appendChild(style);
 
   /* ── State ─────────────────────────────────────────────────── */
   var steps = [];
   var paused = false;
   var checkMode = false;
+  var stopped = false;
   var startTime = Date.now();
   var timerInterval = null;
   var lastUrl = location.href;
@@ -112,7 +113,7 @@
   var actions = h('div', { className: 'sg-actions' }, [undoBtn, checkBtn, pauseBtn, stopBtn]);
 
   var toolbar = h('div', { id: 'sg-recorder' }, [header, stepList, actions]);
-  document.body.appendChild(toolbar);
+  (document.body || document.documentElement).appendChild(toolbar);
 
   /* ── Timer ─────────────────────────────────────────────────── */
   function updateTimer() {
@@ -297,6 +298,9 @@
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    urlObserver.disconnect();
+    window.removeEventListener('popstate', checkNavigation);
+    stopped = true;
     bridge({ type: 'stop', steps: steps });
   }
 
@@ -346,7 +350,7 @@
     if (siblings.length === 1) return tag;
 
     var idx = siblings.indexOf(el) + 1;
-    return tag + ':nth-child(' + idx + ')';
+    return tag + ':nth-of-type(' + idx + ')';
   }
 
   /* ── Event capture: click ──────────────────────────────────── */
@@ -388,6 +392,7 @@
 
     inputTimers.set(el, setTimeout(function () {
       inputTimers.delete(el);
+      if (stopped) return;
       var label = findLabel(el) || '';
       addStep({
         type: 'fill',
@@ -445,8 +450,8 @@
   }
 
   // MutationObserver on body for SPA route changes
-  var observer = new MutationObserver(checkNavigation);
-  observer.observe(document.body, { childList: true, subtree: true });
+  var urlObserver = new MutationObserver(checkNavigation);
+  urlObserver.observe(document.body, { childList: true, subtree: true });
 
   // popstate for history navigation
   window.addEventListener('popstate', checkNavigation);
