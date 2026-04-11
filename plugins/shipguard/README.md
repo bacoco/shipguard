@@ -8,7 +8,7 @@ Two AI-powered modules. Use one or both. No test files to write.
 
 | | 📸 **Visual E2E Debugger** | 🔍 **Code Audit** |
 |---|---|---|
-| **What** | AI navigates your app in a real browser, screenshots every page, annotate bugs + auto-fix | Parallel AI agents scan your codebase, find bugs, fix them |
+| **What** | Mark bugs directly on screenshots of your UI — AI traces to source code and fixes automatically | Parallel AI agents scan your codebase, find bugs, fix them |
 | **Command** | `/sg-visual-run` | `/sg-code-audit` |
 | **Output** | Screenshots + draggable annotation cards + auto-fix from annotations | Bug report + auto-fixes + Mission Control dashboard |
 

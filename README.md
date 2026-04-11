@@ -12,7 +12,7 @@ Two AI-powered modules. Use one or both. No test files to write.
 
 ### 📸 Visual E2E Debugger
 
-AI navigates your app in a real browser, screenshots every page, and lets you **annotate bugs with draggable cards**. Then it traces each annotation to source code and **fixes it automatically**.
+See a bug? **Mark it on the screenshot.** Drop colored cards directly on your UI, describe what's wrong, and the AI agent **traces it to source code and fixes it automatically**. Point at the problem — the code fixes itself.
 
 ```
 /sg-visual-run
