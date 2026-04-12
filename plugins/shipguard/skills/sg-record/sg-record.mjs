@@ -81,6 +81,9 @@ function handleBridgeEvent(event) {
     case 'step':
       allSteps.push(event.step);
       console.log(`  \u2713 ${event.step.type.padEnd(8)} ${stepDetail(event.step)}`);
+      if (event.step.isPassword) {
+        console.log('  \u26A0 Password field detected — value replaced with {credentials.password}');
+      }
       break;
     case 'undo':
       allSteps.pop();
@@ -154,15 +157,13 @@ async function main() {
   const contextOptions = {
     viewport: { width: 1440, height: 900 },
     ignoreHTTPSErrors: true,
+    bypassCSP: true,
   };
   if (storageArg && existsSync(storageArg)) {
     contextOptions.storageState = storageArg;
   }
 
   const context = await browser.newContext(contextOptions);
-
-  // Inject toolbar on every page (including navigations)
-  await context.addInitScript(toolbarJS);
 
   // Bridge function: receives JSON strings from the toolbar
   await context.exposeFunction('__sgBridge', (jsonStr) => {
@@ -176,6 +177,16 @@ async function main() {
 
   const page = await context.newPage();
 
+  // Inject toolbar after page load (not addInitScript which gets overwritten by DOM parser)
+  async function injectToolbar() {
+    try {
+      await page.addScriptTag({ content: toolbarJS });
+    } catch (_) { /* page may have been closed */ }
+  }
+
+  // Re-inject on every navigation (SPA and MPA)
+  page.on('load', () => injectToolbar());
+
   // Log frame navigations
   page.on('framenavigated', (frame) => {
     if (frame === page.mainFrame()) {
@@ -184,6 +195,7 @@ async function main() {
   });
 
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await injectToolbar();
 
   console.log('  Browser open \u2014 start interacting!');
   console.log('  Press Stop in the toolbar when done.\n');

@@ -117,4 +117,27 @@ describe('actionsToYaml', () => {
     assert.ok(yaml.includes('tags: [recorded]'));
     assert.ok(yaml.includes('steps:'));
   });
+
+  test('masks password fields with placeholder (#34)', () => {
+    const actions = [
+      { type: 'open', url: 'http://localhost:6969/login' },
+      { type: 'fill', text: 'Password', selector: '#password', value: 'SuperSecret123', isPassword: true },
+    ];
+    const yaml = actionsToYaml(actions, { name: 'test-password', baseUrl: 'http://localhost:6969' });
+    assert.ok(yaml.includes('{credentials.password}'), 'password should be replaced with placeholder');
+    assert.ok(!yaml.includes('SuperSecret123'), 'real password must NOT appear in YAML');
+  });
+
+  test('requires_auth false by default, true when password field present (#25)', () => {
+    const noPassword = [{ type: 'open', url: 'http://localhost:6969/dashboard' }];
+    const yamlNoAuth = actionsToYaml(noPassword, { name: 'no-auth', baseUrl: 'http://localhost:6969' });
+    assert.ok(yamlNoAuth.includes('requires_auth: false'), 'should be false without password fields');
+
+    const withPassword = [
+      { type: 'open', url: 'http://localhost:6969/login' },
+      { type: 'fill', text: 'Password', selector: '#pw', value: '{credentials.password}', isPassword: true },
+    ];
+    const yamlAuth = actionsToYaml(withPassword, { name: 'with-auth', baseUrl: 'http://localhost:6969' });
+    assert.ok(yamlAuth.includes('requires_auth: true'), 'should be true when password field was filled');
+  });
 });

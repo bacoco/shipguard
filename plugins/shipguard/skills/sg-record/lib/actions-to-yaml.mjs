@@ -46,10 +46,9 @@ export function actionsToYaml(actions, opts) {
   const { name, baseUrl } = opts;
   const recordedAt = new Date().toISOString();
 
-  // Determine requires_auth: false only when the first open action points to /login
-  const firstOpen = actions.find(a => a.type === 'open');
-  const firstPath = firstOpen ? stripBase(firstOpen.url || '', baseUrl) : '/';
-  const requiresAuth = !firstPath.startsWith('/login');
+  // Determine requires_auth: true only when a password field was filled during recording
+  const hasPasswordField = actions.some(a => a.type === 'fill' && a.isPassword);
+  const requiresAuth = hasPasswordField;
 
   // Build header
   const lines = [];
@@ -88,7 +87,7 @@ export function actionsToYaml(actions, opts) {
 
       case 'fill': {
         const target = action.text || action.selector || '';
-        const value = action.value || '';
+        const value = action.isPassword ? '{credentials.password}' : (action.value || '');
         lines.push(`  - action: fill`);
         lines.push(`    target: "${escYaml(target)}"`);
         lines.push(`    value: "${escYaml(value)}"`);

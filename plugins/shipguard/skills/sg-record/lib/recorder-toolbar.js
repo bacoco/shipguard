@@ -394,11 +394,13 @@
       inputTimers.delete(el);
       if (stopped) return;
       var label = findLabel(el) || '';
+      var isPassword = (el.type === 'password');
       addStep({
         type: 'fill',
         text: label,
         selector: cssSelector(el),
-        value: el.value
+        value: isPassword ? '{credentials.password}' : el.value,
+        isPassword: isPassword
       });
     }, 800));
   }, true);

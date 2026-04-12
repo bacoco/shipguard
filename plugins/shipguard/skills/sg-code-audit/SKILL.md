@@ -331,7 +331,7 @@ Do NOT read or modify files outside your scope.
 
 {Activated language checklists from references/checklists.md — only the detected languages}
 
-## Severity Definitions
+## Severity Definitions (STRICT — use only these 4 values, lowercase)
 
 | Severity | When to use |
 |----------|-------------|
@@ -340,9 +340,31 @@ Do NOT read or modify files outside your scope.
 | `medium` | Edge case crash, missing validation, incorrect error handling |
 | `low` | Dead code, style, minor performance, missing accessibility |
 
-## Category Taxonomy
+**WARNING:** Use only `critical`, `high`, `medium`, `low` (lowercase). Do NOT use `CRITICAL`, `HIGH`, `serious`, `warning`, `info`, or any other value.
 
-Use exactly one of: `security`, `race-condition`, `silent-exception`, `api-guard`, `resource-leak`, `type-mismatch`, `dead-code`, `infra`, `ssr-hydration`, `input-validation`, `error-handling`, `performance`, `accessibility`, `logic-error`, `other`
+## Category Taxonomy (STRICT — do NOT invent new categories)
+
+Use **exactly** one of these 15 values. No variations, no synonyms, no new categories:
+
+| Category | Use for |
+|----------|---------|
+| `security` | Auth bypass, XSS, injection, secrets in code |
+| `race-condition` | Concurrent access, TOCTOU, shared state |
+| `silent-exception` | Swallowed errors, bare except, except-pass |
+| `api-guard` | Missing null checks on API responses, unguarded indexing |
+| `resource-leak` | Unclosed files/connections, missing cleanup |
+| `type-mismatch` | Wrong types, implicit conversions, schema drift |
+| `dead-code` | Unused imports, unreachable branches, obsolete functions |
+| `infra` | Dockerfile, compose, CI/CD, env vars, build config |
+| `ssr-hydration` | SSR/CSR mismatch, hydration errors, window/document in SSR |
+| `input-validation` | Missing sanitization, unchecked user input |
+| `error-handling` | Wrong error type, missing try/catch at boundaries |
+| `performance` | N+1 queries, unnecessary re-renders, missing memoization |
+| `accessibility` | Missing ARIA, contrast, keyboard navigation |
+| `logic-error` | Off-by-one, wrong condition, incorrect algorithm |
+| `other` | Only if none of the above fit — explain in subcategory |
+
+**WARNING:** If you use a category NOT in this list (e.g. "error_handling", "bare_except", "CRITICAL"), the dashboard will not display it correctly. Copy-paste from the table above.
 
 ## Output Format
 
@@ -566,6 +588,41 @@ After all merges:
 Read all zone JSON files produced in this round:
 - From successfully merged worktrees: `{results_dir}/zone-{zone.id}-r{round_number}.json`
 - From worktrees that had merge conflicts: read directly from the worktree path before cleanup
+
+### Step 1.5: Normalize + Deduplicate
+
+Before aggregation, apply two corrections to each bug in each zone JSON:
+
+**Severity normalization:** Map any non-standard severity to the nearest valid value:
+- `CRITICAL`, `Critical` → `critical`
+- `HIGH`, `High`, `serious` → `high`
+- `MEDIUM`, `Medium`, `warning`, `moderate` → `medium`
+- `LOW`, `Low`, `info`, `minor`, `trivial`, `style` → `low`
+- anything else → `medium`
+
+**Category normalization:** Map any non-standard category to the nearest valid value:
+- `error_handling`, `error-handling` → `error-handling`
+- `bare_except`, `except_pass`, `except-pass`, `swallowed-exception` → `silent-exception`
+- `auth`, `auth-bypass`, `xss`, `injection`, `secrets` → `security`
+- `null-check`, `null_check`, `missing-guard` → `api-guard`
+- `unused`, `unused-code`, `unreachable` → `dead-code`
+- `hydration`, `ssr`, `csr-mismatch` → `ssr-hydration`
+- `validation`, `sanitization` → `input-validation`
+- `leak`, `unclosed`, `memory-leak` → `resource-leak`
+- `types`, `type_mismatch`, `schema` → `type-mismatch`
+- `docker`, `ci`, `build`, `env` → `infra`
+- `perf`, `n+1`, `re-render` → `performance`
+- `a11y`, `aria`, `contrast` → `accessibility`
+- `race`, `concurrency`, `toctou` → `race-condition`
+- `off-by-one`, `wrong-condition`, `algorithm` → `logic-error`
+- anything else not in the 15 valid categories → `other`
+
+**Deduplication:** Group bugs by `(file, title_normalized)` where `title_normalized` is the title lowercased with whitespace collapsed. If multiple bugs have the same file+title:
+- Keep the one with the highest severity
+- Set `occurrence_count` to the number of duplicates found
+- Discard the rest
+
+Log: `Normalized {N} severity values, {M} category values, deduplicated {D} bugs.`
 
 ### Step 2: Build audit-results.json
 

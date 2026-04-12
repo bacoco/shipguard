@@ -1635,6 +1635,8 @@ var _auditData = null;
 var _auditFilter = 'all';
 var _auditRouteFilter = null;  // route prefix filter from Routes sub-tab click
 var _auditPollTimer = null;
+var _auditPollFailures = 0;
+var _AUDIT_MAX_POLL_FAILURES = 10; // stop after 10 consecutive 404s (~30s)
 
 var _auditLoadInProgress = false;
 function loadAuditData() {
@@ -1647,13 +1649,29 @@ function loadAuditData() {
       _auditLoadInProgress = false;
       if (data && data.bugs && data.bugs.length > 0) {
         _auditData = data;
+        _auditPollFailures = 0;
         stopAuditPoll();
         renderAuditComplete(data);
       } else {
+        _auditPollFailures++;
+        if (_auditPollFailures >= _AUDIT_MAX_POLL_FAILURES) {
+          stopAuditPoll();
+          showAuditEmpty();
+          return;
+        }
         loadAuditMonitor();
       }
     })
-    .catch(function() { _auditLoadInProgress = false; loadAuditMonitor(); });
+    .catch(function() {
+      _auditLoadInProgress = false;
+      _auditPollFailures++;
+      if (_auditPollFailures >= _AUDIT_MAX_POLL_FAILURES) {
+        stopAuditPoll();
+        showAuditEmpty();
+        return;
+      }
+      loadAuditMonitor();
+    });
 }
 
 function loadAuditMonitor() {
@@ -1773,7 +1791,67 @@ function makePod(a) {
   return pod;
 }
 
+// Client-side normalization safety net (fixes #30 taxonomy + #21 dedup)
+function normalizeAuditData(data) {
+  if (!data || !data.bugs) return data;
+  var sevMap = {CRITICAL:'critical',Critical:'critical',HIGH:'high',High:'high',serious:'high',
+    MEDIUM:'medium',Medium:'medium',warning:'medium',moderate:'medium',
+    LOW:'low',Low:'low',info:'low',minor:'low',trivial:'low',style:'low'};
+  var catMap = {'error_handling':'error-handling','bare_except':'silent-exception',
+    'except_pass':'silent-exception','except-pass':'silent-exception','swallowed-exception':'silent-exception',
+    auth:'security','auth-bypass':'security',xss:'security',injection:'security',secrets:'security',
+    'null-check':'api-guard','null_check':'api-guard','missing-guard':'api-guard',
+    unused:'dead-code','unused-code':'dead-code',unreachable:'dead-code',
+    hydration:'ssr-hydration',ssr:'ssr-hydration','csr-mismatch':'ssr-hydration',
+    validation:'input-validation',sanitization:'input-validation',
+    leak:'resource-leak',unclosed:'resource-leak','memory-leak':'resource-leak',
+    types:'type-mismatch','type_mismatch':'type-mismatch',schema:'type-mismatch',
+    docker:'infra',ci:'infra',build:'infra',env:'infra',
+    perf:'performance','n+1':'performance','re-render':'performance',
+    a11y:'accessibility',aria:'accessibility',contrast:'accessibility',
+    race:'race-condition',concurrency:'race-condition',toctou:'race-condition',
+    'off-by-one':'logic-error','wrong-condition':'logic-error',algorithm:'logic-error'};
+  var validCats = ['security','race-condition','silent-exception','api-guard','resource-leak',
+    'type-mismatch','dead-code','infra','ssr-hydration','input-validation','error-handling',
+    'performance','accessibility','logic-error','other'];
+  data.bugs.forEach(function(b) {
+    if (b.severity && sevMap[b.severity]) b.severity = sevMap[b.severity];
+    if (b.severity) b.severity = b.severity.toLowerCase();
+    if (!['critical','high','medium','low'].includes(b.severity)) b.severity = 'medium';
+    if (b.category && catMap[b.category]) b.category = catMap[b.category];
+    if (b.category && !validCats.includes(b.category)) b.category = 'other';
+  });
+  // Dedup by file + normalized title
+  var seen = {};
+  var deduped = [];
+  data.bugs.forEach(function(b) {
+    var key = (b.file || '') + '::' + (b.title || '').toLowerCase().replace(/\s+/g,' ').trim();
+    if (seen[key]) {
+      seen[key].occurrence_count = (seen[key].occurrence_count || 1) + 1;
+      var sevRank = {critical:4,high:3,medium:2,low:1};
+      if ((sevRank[b.severity]||0) > (sevRank[seen[key].severity]||0)) seen[key].severity = b.severity;
+    } else {
+      b.occurrence_count = 1;
+      seen[key] = b;
+      deduped.push(b);
+    }
+  });
+  data.bugs = deduped;
+  // Recompute summary
+  if (data.summary) {
+    data.summary.total_bugs = deduped.length;
+    data.summary.by_severity = {critical:0,high:0,medium:0,low:0};
+    data.summary.by_category = {};
+    deduped.forEach(function(b) {
+      data.summary.by_severity[b.severity] = (data.summary.by_severity[b.severity]||0) + 1;
+      data.summary.by_category[b.category] = (data.summary.by_category[b.category]||0) + 1;
+    });
+  }
+  return data;
+}
+
 function renderAuditComplete(data) {
+  data = normalizeAuditData(data);
   document.getElementById('mc-empty').style.display = 'none';
   document.getElementById('mc-progress-box').style.display = 'none';
 

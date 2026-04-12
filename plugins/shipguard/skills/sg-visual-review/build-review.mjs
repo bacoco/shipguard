@@ -130,10 +130,12 @@ const REGRESSIONS_PATH = join(ROOT, '_regressions.yaml');
 const CONFIG_PATH = join(ROOT, '_config.yaml');
 const OUTPUT_PATH = join(RESULTS_DIR, 'review.html');
 
-const CATEGORIES = [
-  'auth', 'principal', 'standalone', 'outils', 'intelligence',
-  'dashboard-only', 'hub', 'docs', 'admin', 'legal',
-];
+// Dynamically discover test categories by scanning subdirectories (fixes #20)
+const CATEGORIES = readdirSync(ROOT, { withFileTypes: true })
+  .filter(d => d.isDirectory() && !d.name.startsWith('_') && !d.name.startsWith('.')
+    && d.name !== 'lib' && d.name !== 'node_modules' && d.name !== 'manifests')
+  .map(d => d.name)
+  .sort();
 
 // ── 1. Parse config ──
 const config = yaml.load(readFileSync(CONFIG_PATH, 'utf8'));
