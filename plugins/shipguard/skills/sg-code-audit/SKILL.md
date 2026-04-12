@@ -162,12 +162,20 @@ Parse the user's input into four values: **mode**, **focus**, **fix_mode**, and 
 
 7. Look up mode parameters:
 
-| Mode | Agents | Rounds | Description |
-|------|--------|--------|-------------|
+| Mode | Max Agents | Rounds | Description |
+|------|-----------|--------|-------------|
 | `quick` | 5 | 1 | Surface scan — known patterns, lint-like |
 | `standard` | 10 | 1 | Standard audit — known patterns with broader coverage |
 | `deep` | 15 | 2 | Surface + runtime behavior analysis |
 | `paranoid` | 20 | 3 | Surface + behavior + edge cases and security |
+
+**Auto-adjust agent count:** The table above gives the **maximum** agents per mode. The actual count is scaled to file count to avoid waste:
+
+```
+agent_count = min(mode_max_agents, ceil(total_file_count / 7))
+```
+
+A 34-file project in `standard` mode gets `min(10, ceil(34/7))` = **5** agents, not 10. A 200-file project gets the full 10. This prevents agents with 2-3 files each from producing shallow results.
 
 8. Store these as working variables: `agent_count`, `round_count`, `focus_path`, `fix_mode`, `scope_mode`, `scope_ref`, `scope_files`, `diff_files`, `importer_files`.
 9. Determine `results_dir`:
@@ -191,6 +199,7 @@ Run the following Glob checks. For each match, activate the corresponding checkl
 5. **Go:** Glob `**/*.go`: activate Go checklist
 6. **Rust:** Glob `**/*.rs`: activate Rust checklist
 7. **JVM:** Glob `**/*.java` OR `**/*.kt`: activate JVM checklist
+8. **HTML/CSS/JS (vanilla):** Glob `**/*.html` — if matches > 0 AND none of the above framework-specific indicators (no `next.config.*`, no `package.json` with React/Vue/Angular, no `*.py` with Flask/FastAPI): activate HTML/CSS/JS checklist. This covers static sites, Hugo/Jekyll output, and vanilla JS projects.
 
 After detection, read `CLAUDE.md` from the repository root if it exists. Store its contents (truncated to 3000 characters) for injection into agent prompts. If the file does not exist, skip this step.
 
@@ -255,6 +264,7 @@ Any zone with fewer than 5 files gets merged into the nearest sibling zone (the 
 
 - If zone count > `agent_count`: merge the two smallest zones (by file count) repeatedly until zone count equals `agent_count`.
 - If zone count < `agent_count`: split the largest zone (by file count) into two halves (by subdirectory boundary) repeatedly until zone count equals `agent_count`.
+- **Flat directory fallback:** If a zone has no subdirectories (all files are in one directory), split by **alphabetical file list**: sort the files alphabetically, divide into two equal halves, create two zones. This handles flat `src/` or `lib/` directories that can't be split by subdirectory.
 - **Overshoot guard:** If splitting a zone would produce more zones than `agent_count` (for example, a zone with many subdirectories), apply the merge step immediately after the split to bring the total back down to `agent_count`.
 
 ### Step 5: Store zones
@@ -341,6 +351,19 @@ Do NOT read or modify files outside your scope.
 | `low` | Dead code, style, minor performance, missing accessibility |
 
 **WARNING:** Use only `critical`, `high`, `medium`, `low` (lowercase). Do NOT use `CRITICAL`, `HIGH`, `serious`, `warning`, `info`, or any other value.
+
+**Calibration examples** (use these as reference points for consistent severity across agents):
+
+| Example bug | Correct severity | Why |
+|-------------|-----------------|-----|
+| SQL injection via unsanitized user input | `critical` | Security bypass, data exfiltration |
+| Unreplaced placeholder in production URL (`DOMAINE`) | `critical` | App points to wrong server, total breakage |
+| Race condition on shared counter without lock | `high` | Wrong behavior under concurrent access |
+| `except Exception: pass` hiding real errors | `high` | Silent failure masks production bugs |
+| Missing `Array.isArray` guard on API response | `medium` | Edge case crash when backend returns non-array |
+| Insufficient color contrast (4:1 instead of 4.5:1) | `low` | Accessibility issue, not a crash |
+| Unused import left after refactor | `low` | Dead code, no runtime impact |
+| Double semicolon in CSS | `low` | Style, no visual impact |
 
 ## Category Taxonomy (STRICT — do NOT invent new categories)
 
@@ -701,7 +724,13 @@ For each bug, map its file path to the most likely UI route. Use framework-speci
    - Grep for `<Route path=` or `path:` in router config files
    - Map component file paths to their declared routes
 
-4. **Generic fallback:**
+4. **Static HTML fallback:** If no JS framework is detected:
+   - Glob `*.html` in `src/`, `public/`, and the repo root
+   - Each HTML file becomes a route: `index.html` → `/`, `about.html` → `/about.html`, `public/help/index.html` → `/help/`
+   - Map bugs to routes by checking if the bug's file path is referenced (via `<script src>` or `<link href>`) in any HTML file
+   - If a bug is in an HTML file directly, the route is the file's derived URL
+
+5. **Generic fallback:**
    - Extract the parent directory name from the bug's file path
    - If visual test manifests exist (`visual-tests/**/*.yaml`), match the directory name against manifest `url` fields
    - If no match, use the directory name as a best-guess route: `src/components/dashboard/` maps to `/dashboard`
@@ -710,7 +739,7 @@ For each bug, map its file path to the most likely UI route. Use framework-speci
 
 Deduplicate routes: if multiple bugs map to the same route, keep one entry with the highest severity and a combined reason.
 
-If no web framework is detected (no Next.js, React Router, etc.), set `impacted_routes` to an empty array `[]`.
+If no routes can be derived (no framework, no HTML files, no manifest matches), set `impacted_routes` to an empty array `[]`.
 
 ### Step 4: Write results
 

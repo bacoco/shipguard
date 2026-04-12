@@ -102,3 +102,25 @@ Find what R1+R2 missed. Think like a security auditor + QA tester.
 - Mutable shared state without synchronization
 - Catching Exception/Throwable too broadly
 - Hardcoded credentials or connection strings
+
+## HTML/CSS/JS (Vanilla) Checklist
+
+- `<img>` without `alt` attribute (accessibility)
+- `<img>` without explicit `width`/`height` attributes (causes layout shift / CLS)
+- `<html>` without `lang` attribute (screen readers can't detect language)
+- Missing `<meta name="viewport">` tag (breaks mobile rendering)
+- Missing `<meta name="description">` or `<meta property="og:*">` tags (SEO/sharing)
+- Missing `<link rel="canonical">` on pages with duplicate URLs
+- Heading hierarchy gaps (`<h1>` followed by `<h3>`, skipping `<h2>`)
+- `<form>` without `<label>` on inputs (accessibility)
+- `<input>` without `autocomplete` attribute on login/address forms
+- Missing `aria-label` or `aria-labelledby` on interactive elements without visible text
+- Missing `role` attributes on custom interactive widgets (tabs, accordions, dialogs)
+- Hardcoded colors outside `:root` or CSS custom properties (inconsistent theming)
+- `querySelector` / `getElementById` result used without null check
+- `addEventListener` without corresponding `removeEventListener` on teardown
+- Missing `{ passive: true }` on scroll/touch event listeners (blocks smooth scrolling)
+- Missing `prefers-reduced-motion` media query for animations
+- Inline scripts using parser-blocking DOM writes instead of createElement/appendChild
+- Broken `<a href>` pointing to non-existent anchors or files
+- Missing `rel="noopener"` on `target="_blank"` links (security + performance)

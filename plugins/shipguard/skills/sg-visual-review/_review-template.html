@@ -577,6 +577,9 @@ body.light #bug-search{background:var(--surface)}
         </div>
         <div class="annot-list" id="lb-annot-list"></div>
       </div>
+      <div class="lb-section" id="lb-annot-hint" style="display:none;padding:10px 14px;margin:8px 0;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:6px;font-size:12px;color:var(--orange)">
+        <strong>Spot an issue?</strong> Click <em>+ Add Note</em> above or double-click the screenshot to annotate it. The test card will be auto-selected for fix.
+      </div>
       <div class="lb-section" id="lb-steps-section">
         <div class="lb-section-title">Steps to reproduce</div>
         <div id="lb-steps"></div>
@@ -985,6 +988,13 @@ function setTheme(t) {
       if (redoBtn) redoBtn.classList.toggle('active', !!redoFlags[testId]);
       renderCards();
       renderAnnotList();
+      // Show hint when test is PASS and has no annotations yet (#28)
+      var hint = document.getElementById('lb-annot-hint');
+      if (hint) {
+        var t = D.tests.find(function(x){return x.id===testId;});
+        var hasAnnots = annotationData[testId] && annotationData[testId].length > 0;
+        hint.style.display = (t && t.status === 'PASS' && !hasAnnots) ? 'block' : 'none';
+      }
     };
     // Keep legacy compat
     window._annotRedraw = renderCards;
@@ -1250,6 +1260,8 @@ function setTheme(t) {
     if (!selected[currentTestId]) { selected[currentTestId]=true; selectedCount++; updateBar(); }
     pendingAnnot = null;
     setAddMode(false);
+    var hint = document.getElementById('lb-annot-hint');
+    if (hint) hint.style.display = 'none';
     renderCards();
     renderAnnotList();
     renderGrid();

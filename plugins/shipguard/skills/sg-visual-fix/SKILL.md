@@ -26,6 +26,18 @@ Human annotates screenshots in review.html
     → AI generates before/after comparison page
 ```
 
+## How This Skill Works (LLM-Driven)
+
+**Important:** This skill is **LLM-driven and non-deterministic.** The same annotated screenshot can produce different fixes across runs because the LLM interprets the visual issue differently each time. This is by design — visual debugging requires judgment, not pattern matching.
+
+| Skill | Execution model | Deterministic? |
+|-------|----------------|---------------|
+| `sg-code-audit` | Parallel agents with structured checklist | Yes (same checklist → same bugs) |
+| `sg-visual-run` | Scripted steps + LLM assertions | Mostly (steps are mechanical; only llm-check varies) |
+| **`sg-visual-fix`** | **LLM reads screenshot → traces to code → implements fix** | **No** (different interpretation each run) |
+
+If a fix doesn't work, re-run or provide more specific annotation notes to guide the LLM.
+
 ## Invocations
 
 | Command | Behavior |
@@ -101,7 +113,12 @@ Read `build_command` from `visual-tests/_config.yaml`:
 
 - If `build_command` is a non-null string: execute it
 - If `build_command: null`: no rebuild needed — proceed directly to re-run
-- If `build_command` is absent from config entirely: ask the user how to rebuild, then proceed
+- If `build_command` is absent from config entirely: **auto-detect before asking the user:**
+  1. Check `package.json` → `scripts.build` or `scripts.dev` → propose `npm run build` or `npm run dev`
+  2. Check for `docker-compose.yml`/`docker-compose.yaml` → propose `docker compose up -d --build`
+  3. Check `playwright.config.js`/`.ts` → `webServer.command`
+  4. If detected, use it and print: `Auto-detected build command: {command}`
+  5. If nothing detected, ask the user how to rebuild, then proceed
 
 ```bash
 # Examples of build_command values in _config.yaml:

@@ -163,6 +163,34 @@ agent-browser uses a single Playwright daemon. Multiple agents trying to control
 
 Sequential execution with a single auth is also faster in practice: no re-login overhead, no session conflicts, no retries.
 
+## Progress Reporting
+
+During execution, print a progress line after each test completes:
+
+```
+[sg-visual-run] Test {current}/{total} — {test-name} ({PASS|FAIL|STALE|ERROR}) — ~{remaining} min remaining
+```
+
+Estimate remaining time: `(elapsed_seconds / tests_completed) * tests_remaining / 60`. Update after each test.
+
+## llm-check Reliability Guide
+
+`llm-check` assertions are evaluated by the LLM at runtime. They are **reliable** for:
+- Blank/white screens (no content rendered)
+- Broken layouts (overlapping elements, missing sections, scrollbar issues)
+- Missing images or broken image icons
+- Error messages, toasts, modals with error text
+- Page structure (sidebar present, header visible, correct number of tabs)
+
+They are **NOT reliable** for:
+- Business-correct data values (e.g., "total should be 42.50")
+- Exact text matching (use `assert_text` instead)
+- Color accuracy or subtle styling differences
+- Dynamic content that changes between runs (timestamps, random IDs)
+- Performance metrics (load time, animation smoothness)
+
+**Rule of thumb:** Use `llm-check` for "does it look right?" and `assert_text`/`assert_url` for "is the exact value correct?"
+
 ## Execution Loop
 
 For each manifest assigned to this agent:

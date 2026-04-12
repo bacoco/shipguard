@@ -147,7 +147,10 @@ async function main() {
   try {
     ({ chromium } = await import('playwright'));
   } catch {
-    console.error('  Playwright not found. Install with: npm i playwright && npx playwright install chromium');
+    // Detect if this is a non-npm project (no package.json)
+    const hasPackageJson = existsSync(join(process.cwd(), 'package.json'));
+    const initStep = hasPackageJson ? '' : 'npm init -y && ';
+    console.error(`  Playwright not found. Install with:\n\n    ${initStep}npm install playwright && npx playwright install chromium\n`);
     process.exit(1);
   }
 
