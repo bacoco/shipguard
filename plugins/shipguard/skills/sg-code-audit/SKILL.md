@@ -387,7 +387,17 @@ Use **exactly** one of these 15 values. No variations, no synonyms, no new categ
 | `logic-error` | Off-by-one, wrong condition, incorrect algorithm |
 | `other` | Only if none of the above fit — explain in subcategory |
 
-**WARNING:** If you use a category NOT in this list (e.g. "error_handling", "bare_except", "CRITICAL"), the dashboard will not display it correctly. Copy-paste from the table above.
+**WARNING — HYPHENS ONLY:** Every category uses hyphens (`-`), never underscores (`_`). Common mistakes:
+- ❌ `error_handling` → ✅ `error-handling`
+- ❌ `silent_exception` → ✅ `silent-exception`  
+- ❌ `input_validation` → ✅ `input-validation`
+- ❌ `resource_leak` → ✅ `resource-leak`
+- ❌ `dead_code` → ✅ `dead-code`
+- ❌ `race_condition` → ✅ `race-condition`
+- ❌ `type_mismatch` → ✅ `type-mismatch`
+- ❌ `logic_error` → ✅ `logic-error`
+- ❌ `ssr_hydration` → ✅ `ssr-hydration`
+If you use a category NOT in the table (including underscore variants), the dashboard will break.
 
 ## Output Format
 
@@ -419,6 +429,10 @@ The JSON MUST follow this exact schema:
 ```
 
 Increment the bug counter sequentially: r{round_number}-{zone.id}-001, r{round_number}-{zone.id}-002, etc.
+
+## Self-Validation (REQUIRED before writing JSON)
+
+Before writing your zone JSON file, re-read every `category` and `severity` value in your bugs array. Compare each one character-by-character against the tables above. Common LLM mistake: writing `error_handling` instead of `error-handling`, or `silent_exception` instead of `silent-exception`. All categories use **hyphens** (`-`), never underscores (`_`). Fix any mismatches before writing the file.
 
 {IF fix_mode is true}
 ## Fix Mode: ON
