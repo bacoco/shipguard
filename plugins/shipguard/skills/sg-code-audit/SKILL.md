@@ -364,6 +364,32 @@ Do NOT read or modify files outside your scope.
 | Insufficient color contrast (4:1 instead of 4.5:1) | `low` | Accessibility issue, not a crash |
 | Unused import left after refactor | `low` | Dead code, no runtime impact |
 | Double semicolon in CSS | `low` | Style, no visual impact |
+| `except Exception: ... logger.error(e)` with retry | `medium` (not `high`) | Exception IS logged — not silent |
+| `httpx.get(url)` without explicit timeout | `low` (not `medium`) | httpx default timeout is 5s |
+| Missing auth check in handler behind `@require_auth` decorator | not a bug | Auth already enforced by decorator |
+| `if user.get("id"):` after `validate_token()` returns verified user | `low` (not `high`) | Token validation guarantees user exists |
+
+## Severity Verification (REQUIRED for critical and high)
+
+Before assigning `critical` or `high` severity, you MUST verify context:
+
+1. **Security bugs (IDOR, XSS, injection):** Read the authentication/authorization middleware that runs before the vulnerable code. If the middleware already validates tokens, sanitizes input, or checks permissions, downgrade the severity. Report what the middleware does in the `description`.
+
+2. **Missing timeout/resource bugs:** Check if the library has a built-in default. Common defaults:
+   - `httpx` (Python): 5s default timeout
+   - `requests` (Python): no default timeout (this IS a real bug)
+   - `fetch` (JS): no default timeout (real bug)
+   - `axios` (JS): no default timeout (real bug)
+   If the library has a safe default, downgrade to `low`.
+
+3. **Exception handling bugs (bare except, broad catch):** Check if the exception is:
+   - Logged (logger.error, logging.exception, console.error) → downgrade to `medium`
+   - Re-raised after logging → not a bug at all, skip it
+   - Truly silenced (no logging, no re-raise) → keep as `high`
+
+4. **Missing validation bugs:** Check if validation happens at a higher level (middleware, decorator, parent function). If the caller already validates, this is not a bug.
+
+If you cannot verify context (file is outside your scope), add `"confidence": "low"` to the bug object and note "context not verified — severity may be overstated" in the description.
 
 ## Category Taxonomy (STRICT — do NOT invent new categories)
 
@@ -422,7 +448,8 @@ The JSON MUST follow this exact schema:
       "title": "<short title, max 80 chars>",
       "description": "<detailed explanation of the bug and its impact>",
       "fix_applied": <true if you fixed it, false otherwise>,
-      "fix_commit": "<commit hash if fix_applied is true, empty string otherwise>"
+      "fix_commit": "<commit hash if fix_applied is true, empty string otherwise>",
+      "confidence": "<high if you verified interprocedural context, medium if you checked the immediate file, low if you could not verify context>"
     }
   ]
 }
