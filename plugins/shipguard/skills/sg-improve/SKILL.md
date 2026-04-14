@@ -1,268 +1,387 @@
 ---
 name: sg-improve
-description: Auto-improve ShipGuard skills from real session learnings. Analyzes the current conversation for friction points, extracts insights, saves project-specific learnings locally, and files generic improvements as GitHub issues. Trigger on "sg-improve", "improve shipguard", "ameliore shipguard", "shipguard feedback", "session insights".
+description: Auto-improve ShipGuard from real session learnings. Run this after any /sg-code-audit, /sg-visual-run, or debugging session. Analyzes what worked, what broke, and what was slow — saves project-specific learnings locally (zone sizing, patterns, infra timing) and files generic improvements as GitHub issues. The local learnings feed back into the next audit run automatically. Trigger on "sg-improve", "improve shipguard", "ameliore shipguard", "shipguard feedback", "session insights", "retex", "retrospective", "what did we learn".
 context: conversation
 argument-hint: "[--local-only] [--github-only] [--dry-run]"
 ---
 
 # /sg-improve — Self-Improving Feedback Loop
 
-Analyze the current session for what worked, what broke, and what was slow. Extract actionable insights, save them locally for future runs, and file generic improvements as GitHub issues on the ShipGuard repo.
+After an audit or visual-test session, this skill extracts what went well and what didn't, then feeds those insights back into ShipGuard so the next run is better. Think of it as a retrospective that writes its own action items.
 
-## How It Works
+Two outputs:
+1. **Local learnings** (`.shipguard/learnings.yaml`) — project-specific knowledge that the next `/sg-code-audit` reads automatically (zone size limits, codebase-specific patterns, infra timing)
+2. **GitHub issue** (`bacoco/ShipGuard`) — generic improvements that benefit all ShipGuard users (better retry logic, missing validation steps, UX friction)
 
 ```
-Session complete (audit, visual-run, etc.)
+Session (audit, visual-run, debug)
   │
   ▼
 /sg-improve
   │
-  ├─► Phase 1: Extract — scan conversation for friction signals
-  ├─► Phase 2: Classify — project-specific vs generic
-  ├─► Phase 3: Local — write .shipguard/learnings.yaml (project memory)
-  ├─► Phase 4: GitHub — create issue on bacoco/ShipGuard (generic only)
-  └─► Phase 5: Inject — update sg-code-audit prompt hints for next run
+  ├─► Phase 1: Collect structured data (audit-results.json, git log, regressions)
+  ├─► Phase 2: Extract friction signals from data + conversation
+  ├─► Phase 3: Classify each signal (project-specific vs generic)
+  ├─► Phase 4: Write .shipguard/learnings.yaml (project memory)
+  ├─► Phase 5: File GitHub issue (generic improvements)
+  └─► Phase 6: Summary — what the next run will do differently
 ```
 
 ## Invocations
 
 | Command | Behavior |
 |---------|----------|
-| `/sg-improve` | Full loop — local + GitHub issue |
-| `/sg-improve --local-only` | Save learnings locally, no GitHub issue |
-| `/sg-improve --github-only` | File GitHub issue only, no local save |
-| `/sg-improve --dry-run` | Show what would be filed, don't write anything |
+| `/sg-improve` | Full loop — local learnings + GitHub issue |
+| `/sg-improve --local-only` | Save learnings locally, skip GitHub |
+| `/sg-improve --github-only` | File GitHub issue only, skip local |
+| `/sg-improve --dry-run` | Show what would be saved/filed, write nothing |
 
 ---
 
-## Phase 1 — Extract Friction Signals
+## Phase 1 — Collect Structured Data
 
-Scan the conversation history for these signal patterns:
+Before scanning the conversation, gather the hard data. These files contain objective metrics that don't depend on parsing chat messages.
+
+### Step 1: Find audit-results.json
+
+Check these paths in order (first found wins):
+1. `visual-tests/_results/audit-results.json`
+2. `.code-audit-results/audit-results.json`
+3. `audit-results.json` (repo root)
+
+If found, read it and extract:
+- `summary.total_bugs`, `summary.by_severity`, `summary.by_category`
+- `summary.duration_ms`, `agents` count
+- `scope_info.mode`, `scope_info.total_in_scope` (if diff mode)
+- Count of `bugs` where `fix_applied: false` (deferred/unfixable)
+- Count of `bugs` where `confidence: "low"` (uncertain findings)
+
+If not found, log: "No audit-results.json — extracting from conversation only."
+
+### Step 2: Read zone JSON files
+
+Glob `visual-tests/_results/zone-*-r*.json` or `.code-audit-results/zone-*-r*.json`.
+
+For each zone file, extract:
+- `zone`, `files_audited`, `bugs` count
+- Whether the zone ID contains `a`/`b` suffix (indicates a re-split happened)
+
+### Step 3: Read regressions
+
+If `visual-tests/_regressions.yaml` exists, count entries and note any with `consecutive_passes >= 2` (about to be auto-removed — a success signal).
+
+### Step 4: Read git log
+
+```bash
+git log --oneline --since="12 hours ago" | grep -c "audit-r[0-9]"
+```
+
+Count audit-related commits. Check for any revert commits (signal of a bad fix).
+
+### Step 5: Read existing learnings
+
+If `.shipguard/learnings.yaml` exists, read it. The update in Phase 4 must merge with existing data, not overwrite.
+
+---
+
+## Phase 2 — Extract Friction Signals
+
+Now combine the structured data with conversation context. For each signal type below, check both the data (Phase 1) and the conversation history.
 
 ### Error Signals
-- **Context overflow**: "Prompt is too long" → zone sizing issue
-- **API overload**: "529", "overloaded_error" → retry/backoff issue
-- **Syntax errors post-merge**: "IndentationError", "SyntaxError", "TypeError" after worktree merge → validation gap
-- **Browser collision**: agent-browser returning wrong URL or "Target page closed" → parallel execution bug
-- **Session expiry**: redirect to `/` or `/login` mid-test → auth persistence issue
-- **Docker/infra failure**: "unhealthy", "dependency failed" → rebuild/startup issue
+
+| Signal | How to detect | From |
+|--------|--------------|------|
+| Context overflow | Zone IDs with `a`/`b` suffix in zone JSONs, or "Prompt is too long" in conversation | Data + conversation |
+| API overload | "529", "overloaded_error" in conversation | Conversation |
+| Post-merge syntax error | "IndentationError", "SyntaxError", "NameError" after a worktree merge | Conversation |
+| Browser collision | agent-browser returning `/` when a different URL was requested | Conversation |
+| Session expiry | Re-login needed mid-session | Conversation |
+| Docker failure | "unhealthy", "dependency failed" after rebuild | Conversation |
+| Merge conflict | "git merge --abort" in conversation | Conversation |
 
 ### Performance Signals
-- **Re-splits**: count of zones that overflowed and were re-split
-- **Retry count**: total 529/overload retries across all agents
-- **Total wall-clock time**: from first dispatch to final aggregation
-- **Agent utilization**: how many agents completed vs failed vs retried
+
+| Signal | How to compute |
+|--------|----------------|
+| Overflow rate | (zones with a/b suffix) / (total original zones) |
+| Retry count | Count "retry" or "retrying" or "attempt" mentions in conversation |
+| Wall clock | `summary.duration_ms` from audit-results.json, or estimate from first/last audit commit timestamps |
+| Agent waste | Count of zone JSONs with duplicate zone paths (two agents did the same work) |
 
 ### Quality Signals
-- **Noise ratio**: count of `low` severity bugs / total bugs (high ratio = noisy)
-- **Duplicate bugs**: bugs found by multiple agents on the same file
-- **False positives**: bugs that were "deferred" or marked not-a-bug
-- **Post-audit regressions**: any Docker startup failure or visual test failure after audit fixes
 
-### What-Worked Signals
-- **Clean merges**: zones that merged without conflict
-- **High-value finds**: critical/high bugs that were real and impactful
-- **Verified fixes**: bugs confirmed by visual testing
+| Signal | How to compute |
+|--------|----------------|
+| Noise ratio | `summary.by_severity.low` / `summary.total_bugs` |
+| Top noise pattern | Most frequent `category` among `low` severity bugs |
+| Deferred count | Count of `fix_applied: false` in bugs array |
+| Post-audit regression | Any Docker/build failure AFTER audit commits (check conversation) |
 
-For each signal found, record:
+### Success Signals
+
+These matter just as much — they tell us what NOT to change.
+
+| Signal | How to detect |
+|--------|--------------|
+| Clean merge rate | (total zones - merge conflicts) / total zones |
+| Critical bug value | Count of `critical` + `high` severity bugs with `fix_applied: true` |
+| Visual verification | Count of PASS results in visual-run report |
+| Zero-retry zones | Zones that completed on first attempt |
+
+For each signal, record:
 ```yaml
 - signal: "context_overflow"
   count: 3
   details: "z01 (172 files), z02 (178 files), z04 (214 files)"
-  impact: "Added 10 min latency from re-splits"
+  impact: "Added ~10 min latency from re-splits and retries"
+  type: "error"  # error | performance | quality | success
 ```
 
 ---
 
-## Phase 2 — Classify
+## Phase 3 — Classify
 
-For each extracted signal, classify as:
+For each signal, decide where it belongs:
 
-| Type | Criteria | Destination |
-|------|----------|-------------|
-| **project-specific** | References specific file paths, services, ports, timing | `.shipguard/learnings.yaml` |
-| **generic** | Applies to any repo using ShipGuard | GitHub issue on bacoco/ShipGuard |
-| **both** | Generic pattern observed in project-specific context | Both destinations |
+| Classification | Rule of thumb | Destination |
+|----------------|--------------|-------------|
+| **project-specific** | Mentions a file path, service name, port, or timing specific to this repo | `.shipguard/learnings.yaml` only |
+| **generic** | Would help ANY repo using ShipGuard — a missing step, bad default, or design flaw in the skill | GitHub issue |
+| **both** | A generic pattern that was observed through a project-specific symptom | Both |
 
-Examples:
-- "z01 (hooks, 172 files) overflowed" → **project-specific** (knows about hooks dir)
-- "Zones >150 files overflow Sonnet context" → **generic** (applies to everyone)
-- "api-synthesia takes 4 min to start after rebuild" → **project-specific**
-- "Post-merge syntax validation is missing" → **generic**
+When in doubt, classify as **both**. It's better to have a slightly noisy GitHub issue than to lose a generic insight.
 
 ---
 
-## Phase 3 — Local Learnings
+## Phase 4 — Local Learnings
 
-Write to `{repo_root}/.shipguard/learnings.yaml`. Create the directory if it doesn't exist.
+Write to `{repo_root}/.shipguard/learnings.yaml`. Create the `.shipguard/` directory if it doesn't exist.
 
-### Schema
+### Schema (v2)
 
 ```yaml
-# .shipguard/learnings.yaml — Auto-maintained by /sg-improve
-# These learnings are injected into sg-code-audit agent prompts for this repo.
-version: 1
+# .shipguard/learnings.yaml
+# Auto-maintained by /sg-improve. Read by /sg-code-audit at startup.
+# Manual edits are preserved — the skill only appends/updates, never deletes.
+schema_version: 2
 last_updated: "2026-04-14T07:00:00Z"
 
 zone_hints:
-  # Directories that need smaller zones (overflow history)
+  # Directories where the default zone sizing caused overflow.
+  # sg-code-audit reads these to cap files-per-zone during zone discovery.
   - path: "apps/uranus/src/hooks/"
     max_files: 80
-    reason: "172 files caused Sonnet context overflow on 2026-04-13"
-  - path: "apps/uranus/src/components/notaire-chat/"
-    max_files: 60
-    reason: "Complex TSX components, high token density"
+    reason: "172 files overflowed Sonnet context (2026-04-13)"
+    last_seen: "2026-04-14"
+    occurrences: 1
 
 infra_hints:
-  # Timing and dependency knowledge
+  # Service-specific knowledge that helps with rebuild timing,
+  # post-audit verification, and Docker dependency ordering.
   - service: "api-synthesia"
     startup_time_seconds: 240
-    note: "Wait for (healthy) before starting uranus"
-  - service: "uranus"
-    build_type: "COPY"
-    note: "Requires docker rebuild to pick up new public/ files"
+    note: "Needs (healthy) before uranus can start"
+    last_seen: "2026-04-14"
 
 audit_hints:
-  # Patterns to watch for in this specific codebase
-  - pattern: "Zustand selector || []"
-    severity: high
-    note: "Causes infinite re-renders — project-specific CLAUDE.md rule"
+  # Codebase-specific bug patterns to prioritize.
+  # Injected into agent prompts as additional checklist items.
   - pattern: ".first() without None guard"
     severity: critical
-    note: "5 instances found in rag_tasks.py/video_rag_tasks.py on 2026-04-13"
+    note: "SQLAlchemy returns None silently. 5 crash sites in rag_tasks.py."
+    first_seen: "2026-04-14"
+    occurrences: 5
 
 noise_filters:
-  # Low-value patterns to deprioritize
+  # Patterns that generate high volume, low value findings.
+  # sg-code-audit batches these into a single summary entry.
   - pattern: "f-string in logger"
     action: "batch"
-    reason: "13% of all findings, low severity, batch into single entry"
+    reason: "13% of findings, all low severity"
+
+success_patterns:
+  # Things that worked well — do NOT change these in the skill.
+  - pattern: "worktree isolation for agents"
+    note: "Clean merges on 10/13 zones. Isolation prevents cross-agent conflicts."
+  - pattern: "severity calibration examples in prompt"
+    note: "Agents consistently rated severity correctly. Keep the examples table."
 
 session_history:
+  # Last 10 sessions. Older entries auto-pruned on update.
   - date: "2026-04-14"
     mode: "standard"
     files: 2574
-    zones: 13
-    bugs: 79
-    fixed: 77
+    bugs_found: 79
+    bugs_fixed: 77
     critical: 9
+    overflow_rate: 0.23
     wall_clock_minutes: 90
-    overflows: 3
-    retries: 7
-    post_merge_failures: 1
 ```
 
 ### Update Rules
 
-- If `learnings.yaml` exists, READ it first and UPDATE (don't overwrite)
-- `zone_hints`: add new entries, update `max_files` if overflow happened again on a known path
-- `session_history`: append new entry (keep last 10)
-- `noise_filters`: add patterns that generated >5 low-severity findings
-- Never remove entries — let them accumulate. The user can prune manually.
+1. **Read first.** If the file exists, load it entirely before making changes.
+2. **Merge, don't overwrite.** Match entries by `path` (zone_hints), `service` (infra_hints), `pattern` (audit/noise/success). If a match exists, update `last_seen`, increment `occurrences`, and update `note` if the new observation adds information.
+3. **Append new entries** for signals not already present.
+4. **Prune session_history** to the last 10 entries.
+5. **Never delete** zone_hints, audit_hints, or success_patterns — the user prunes manually. If an old hint seems stale (last_seen > 90 days), add a `possibly_stale: true` flag instead of removing it.
+6. **Preserve comments and manual edits.** Read the file as text, parse YAML, modify in memory, write back. If the file has comments that don't parse, preserve them as-is at the top.
 
 ---
 
-## Phase 4 — GitHub Issue
+## Phase 5 — GitHub Issue
 
-Create an issue on `bacoco/ShipGuard` using `gh issue create`.
+### Pre-flight
+
+1. Check `gh auth status` — if not authenticated, skip this phase with a message: "GitHub CLI not authenticated. Run `gh auth login` to enable issue filing. Local learnings saved."
+2. Detect the repo: read `origin` remote URL from the ShipGuard plugin installation directory. Fallback: `bacoco/ShipGuard`.
+
+### Deduplication
+
+Before creating a new issue, check for existing ones:
+
+```bash
+gh issue list --repo bacoco/ShipGuard --state open --label improvement --limit 30 --json number,title,body
+```
+
+For each insight you want to file:
+1. Extract keywords from the insight title (e.g., "context overflow", "retry backoff", "syntax validation")
+2. Search existing issue titles and bodies for those keywords
+3. **If a matching open issue exists:** add a comment with the new data point instead of creating a duplicate. Format: `### New data point ({repo_name}, {date})\n{details}`
+4. **If no match:** create a new issue
+
+This is important because multiple users running `/sg-improve` on different projects will generate similar insights. Commenting on existing issues builds evidence ("3 users hit this") rather than fragmenting it across duplicates.
 
 ### Issue Format
 
 ```markdown
 ## Session Insights — {repo_name} ({date})
 
-**Audit:** {mode} mode, {files} files, {zones} zones, {bugs} bugs found
-**Wall clock:** {minutes} min | Overflows: {overflow_count} | Retries: {retry_count}
+**Audit:** {mode} mode | {files} files | {zones} zones | {bugs} bugs ({critical} critical)
+**Timing:** {minutes} min wall clock | {overflow_count} overflows | {retry_count} retries
 
-### Improvements Found
+### Improvements
 
-{For each generic insight:}
-
-#### {N}. {Title}
-
-**Problem:** {What happened}
-**Impact:** {Time wasted, bugs missed, user friction}
-**Proposal:** {Concrete change to the skill prompt or code}
-**Affected skill:** sg-code-audit | sg-visual-run | sg-visual-review
-
----
+#### 1. {Title}
+**What happened:** {concrete description of the friction}
+**Impact:** {time lost, bugs missed, or user confusion caused}
+**Proposed fix:** {specific change to make in the skill prompt or code}
+**Skill:** `sg-code-audit` | `sg-visual-run` | `sg-visual-review`
 
 ### What Worked Well
+{Bullet list — these are signals to KEEP, not change}
 
-{List of things that performed as expected — useful for knowing what NOT to change}
+### Summary
+| # | Issue | Impact | Effort | Skill |
+|---|-------|--------|--------|-------|
 
-### Severity Table
-
-| # | Issue | Severity | Effort | Skill |
-|---|-------|----------|--------|-------|
+---
+*Filed by `/sg-improve` from {repo_name}*
 ```
 
 ### Labels
 
-Add labels based on content:
-- `improvement` — always
-- `code-audit` — if insights relate to `/sg-code-audit`
-- `visual-run` — if insights relate to `/sg-visual-run`
-- `dx` — if it's about developer experience (UX of the skill)
-- `bug` — if a skill instruction produced incorrect behavior
-
-### Deduplication
-
-Before creating the issue:
-1. `gh issue list --repo bacoco/ShipGuard --state open --label improvement --limit 20`
-2. Check if any open issue has a similar title or covers the same friction points
-3. If >50% overlap: comment on the existing issue instead of creating a new one
-4. If <50% overlap: create new issue
+Always add `improvement`. Then add skill-specific labels based on content:
+- `sg-code-audit` — zone sizing, agent prompts, merge logic
+- `sg-visual-run` — browser execution, auth, screenshots
+- `sg-visual-review` — dashboard, report generation
+- `dx` — developer experience, UX friction, confusing output
+- `bug` — a skill instruction that produced incorrect behavior (not just suboptimal)
 
 ---
 
-## Phase 5 — Inject Into Next Run
+## Phase 6 — Summary
 
-The learnings in `.shipguard/learnings.yaml` should influence the next `/sg-code-audit` run. This phase doesn't modify the skill prompt directly — instead, it generates a **context block** that the audit skill reads at startup.
-
-### How sg-code-audit Uses Learnings
-
-Add this to Phase 3 (Discover Zones) of `sg-code-audit`:
+Display a concise report:
 
 ```
-If .shipguard/learnings.yaml exists:
-  1. Read zone_hints — apply max_files constraints during zone splitting
-  2. Read noise_filters — inject "batch these patterns" instruction into agent prompts
-  3. Read audit_hints — add project-specific patterns to the checklist
-  4. Log: "Loaded {N} learnings from .shipguard/learnings.yaml"
-```
+/sg-improve complete
 
-This creates the feedback loop:
-```
-Run 1: zones overflow → /sg-improve saves zone_hints
-Run 2: sg-code-audit reads zone_hints → smaller zones → no overflow
-Run 2: new pattern found → /sg-improve adds audit_hint
-Run 3: sg-code-audit includes new pattern → catches it earlier
+Local (.shipguard/learnings.yaml):
+  + {N} zone hints (max_files constraints for next audit)
+  + {M} audit hints (codebase-specific patterns to check)
+  + {K} noise filters (low-value patterns to batch)
+  + {S} success patterns (what to keep)
+  Session #{H} recorded
+
+GitHub:
+  {IF new issue} Created bacoco/ShipGuard#{number} — "{title}"
+  {IF commented} Updated bacoco/ShipGuard#{number} with new data point
+  {IF skipped} Skipped (--local-only or gh not authenticated)
+
+Next /sg-code-audit on this repo will:
+  - Cap {path} zones at {max_files} files
+  - Add {N} project-specific patterns to agent checklists
+  - Batch {K} noise patterns into summary entries
 ```
 
 ---
 
-## Output
+## Edge Cases
 
-After completion, display:
+### No audit-results.json found
+The skill can still extract signals from conversation history (retries, errors, timing). Local learnings will be thinner but still useful. Log: "No audit artifacts found — using conversation context only."
+
+### First run (no existing learnings.yaml)
+Create the file from scratch. All signals become new entries. session_history starts with one entry.
+
+### User ran /sg-improve twice in the same session
+The second run should detect that session_history already has an entry for today. Update it rather than appending a duplicate.
+
+### gh CLI not installed or not authenticated
+Skip Phase 5 entirely. Print the issue body to the terminal so the user can file it manually if they want.
+
+### The conversation is very long (>100K tokens)
+Don't try to re-read the entire conversation. Focus on:
+1. The structured data from Phase 1 (audit-results.json, zone JSONs)
+2. The last 20 messages in the conversation (most recent friction)
+3. Any messages containing error keywords (grep-style scan)
+
+### No ShipGuard skills were used this session
+If the conversation doesn't contain evidence of `/sg-code-audit`, `/sg-visual-run`, or `/sg-visual-review` usage, ask the user what they want to capture: "I don't see a ShipGuard session in this conversation. What would you like me to analyze?"
+
+---
+
+## How sg-code-audit Consumes Learnings
+
+For the feedback loop to work, `/sg-code-audit` must read `.shipguard/learnings.yaml` at startup. Here's the integration point (to be added to sg-code-audit Phase 3 — Discover Zones):
 
 ```
-/sg-improve complete:
-  Local: .shipguard/learnings.yaml updated ({N} zone hints, {M} audit hints)
-  GitHub: bacoco/ShipGuard#{issue_number} — "{title}"
-  
-  Next sg-code-audit run will use:
-  - {N} zone size constraints
-  - {M} noise filters
-  - {K} project-specific patterns
+If {repo_root}/.shipguard/learnings.yaml exists:
+  1. Read the file
+  2. zone_hints: during zone splitting, if a directory matches a hint's path,
+     cap that zone at hint.max_files (override the default 30/80 thresholds)
+  3. audit_hints: append each pattern to the language-specific checklist
+     in the agent prompt, with its severity and note
+  4. noise_filters: for patterns with action "batch", add to the agent prompt:
+     "For {pattern}: report ONE summary entry with total count, not individual bugs"
+  5. success_patterns: no action needed — these are for /sg-improve's reference only
+  6. Print: "Loaded {N} learnings from .shipguard/learnings.yaml"
+```
+
+This creates the reinforcement loop:
+```
+Audit 1: hooks overflow at 172 files → /sg-improve saves max_files: 80
+Audit 2: sg-code-audit reads hint → splits hooks into 2 zones → no overflow ✓
+
+Audit 1: .first() crashes found 5 times → /sg-improve saves audit_hint
+Audit 2: agents see the pattern in their checklist → catch it on first scan ✓
+
+Audit 1: f-string loggers = 13% of findings → /sg-improve saves noise_filter
+Audit 2: agents batch into "42 f-string calls in 12 files" → cleaner report ✓
 ```
 
 ---
 
 ## Final Checklist
 
-- [ ] Conversation scanned for all signal types (error, performance, quality, success)
-- [ ] Signals classified as project-specific vs generic
-- [ ] `.shipguard/learnings.yaml` created or updated (if not `--github-only`)
-- [ ] GitHub issue created or existing issue commented (if not `--local-only`)
-- [ ] Issue deduplicated against open issues
-- [ ] Summary displayed to user
+- [ ] audit-results.json read (if exists)
+- [ ] Zone JSONs scanned for overflow indicators
+- [ ] Git log checked for audit commits and reverts
+- [ ] Conversation scanned for error/performance/quality/success signals
+- [ ] Each signal classified (project-specific / generic / both)
+- [ ] `.shipguard/learnings.yaml` created or merged (unless `--github-only`)
+- [ ] Existing GitHub issues checked for duplicates (unless `--local-only`)
+- [ ] GitHub issue created or existing issue commented (unless `--local-only`)
+- [ ] Summary displayed with concrete "next run will..." predictions
