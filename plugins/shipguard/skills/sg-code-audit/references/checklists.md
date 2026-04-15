@@ -124,3 +124,43 @@ Find what R1+R2 missed. Think like a security auditor + QA tester.
 - Inline scripts using parser-blocking DOM writes instead of createElement/appendChild
 - Broken `<a href>` pointing to non-existent anchors or files
 - Missing `rel="noopener"` on `target="_blank"` links (security + performance)
+
+## Application-Level Checklist (all languages)
+
+These checks go beyond per-file patterns — they look at whether features actually work end-to-end.
+
+### UI / Frontend Logic
+- Button or action rendered in UI but handler is a no-op, throws "not implemented", or is missing entirely
+- Route guard or redirect that blocks a page that should be accessible (or vice versa)
+- State machine with phases/states declared but never reached via any transition
+- Component shows success feedback while the actual API request failed or was never sent
+- Modal or panel that leaks resources (intervals, listeners) when closed without cleanup
+- Feature flag checked in config but the code path behind it is unreachable for a different reason
+
+### Backend / API Logic
+- API route accepts a request field in the schema but never reads or uses it
+- System prompt, workflow template, or configuration declared but never injected into the actual processing
+- Duplicate detection logic that still enqueues/processes the item despite detecting a duplicate
+- Queue or background task created more than once per single user action
+- Silent fallback that returns a default value when the real response was an error (hides failures)
+- Endpoint changes response shape in a new version but callers still read the old shape
+
+### Cross-Service Integration
+- Frontend sends payload field X, backend expects field Y (different name, type, or nesting)
+- Proxy rewrite path doesn't match backend route path (404 at runtime despite both sides existing)
+- Auth token propagation mismatch — frontend sends via header, backend reads from cookie (or vice versa)
+- Frontend expects error `{ error: "..." }`, backend returns `{ detail: "..." }` or raw string
+- Response assumed to be an array but backend returns `null`, an object, or HTML on error
+- Document/entity scope mixing — action on item A accidentally processes or returns data for item B
+
+### Data / Pipeline Logic
+- Same document or entity processed twice (duplicate task creation, double indexing)
+- Cache or index not invalidated after the underlying data changes
+- Polling/completion check that stops polling when it shouldn't (wrong status transition)
+- Batch operation that silently skips failures instead of reporting them
+
+### Validation Gaps
+- Build/compile passes but typecheck is not configured or is skipped in CI
+- New feature has no test, no smoke check, and no manual verification step documented
+- Backend route changed but no route-level test was updated
+- Claims of "feature complete" based only on code reading, not execution

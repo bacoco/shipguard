@@ -375,8 +375,8 @@ This is the core execution phase. For each round (1 to `round_count`), build pro
 For each zone, build this prompt. Replace all `{...}` placeholders with actual values:
 
 ```
-You are auditing a codebase for bugs. Your scope is ONLY these paths: {zone.paths joined with " AND "}.
-Do NOT read or modify files outside your scope.
+You are auditing a codebase for bugs. Your primary scope is these paths: {zone.paths joined with " AND "}.
+Do NOT modify files outside your scope. You MAY read files outside your scope to verify cross-module integration (caller/callee contracts, import chains, shared types).
 
 {IF CLAUDE.md content exists}
 ## Project Rules (from CLAUDE.md — follow these strictly)
@@ -444,7 +444,7 @@ If you cannot verify context (file is outside your scope), add `"confidence": "l
 
 ## Category Taxonomy (STRICT — do NOT invent new categories)
 
-Use **exactly** one of these 15 values. No variations, no synonyms, no new categories:
+Use **exactly** one of these 16 values. No variations, no synonyms, no new categories:
 
 | Category | Use for |
 |----------|---------|
@@ -462,6 +462,7 @@ Use **exactly** one of these 15 values. No variations, no synonyms, no new categ
 | `performance` | N+1 queries, unnecessary re-renders, missing memoization |
 | `accessibility` | Missing ARIA, contrast, keyboard navigation |
 | `logic-error` | Off-by-one, wrong condition, incorrect algorithm |
+| `integration` | Cross-zone payload mismatch, dead endpoint, auth propagation gap, proxy route mismatch |
 | `other` | Only if none of the above fit — explain in subcategory |
 
 **WARNING — HYPHENS ONLY:** Every category uses hyphens (`-`), never underscores (`_`). Common mistakes:
@@ -581,14 +582,26 @@ For these patterns, report ONE summary entry with the total count instead of ind
 
 {repo_root}
 
+## Skeptical Heuristics (APPLY to every file you read)
+
+- Do not trust naming — trace the actual runtime behavior.
+- Do not trust a UI component unless its action handler exists and reaches a real endpoint.
+- Do not trust a backend route unless its caller sends the expected payload shape.
+- Do not trust a "duplicate check" unless it is truly side-effect free.
+- Do not trust "supports X" unless the state machine actually reaches state X.
+- If a function accepts a parameter, verify it actually uses it — not just declares it.
+- If a config declares a feature, verify the feature is reachable at runtime.
+- A passing build is NOT proof of functional correctness.
+
 ## Instructions
 
 1. Read every source file in your scope using the Read tool
-2. For each file, apply the round focus checks AND the language-specific checks
-3. Record every bug found in the JSON output
-4. {IF fix_mode} Fix bugs using Edit, then commit {ELSE} Do NOT edit any files {END IF}
-5. Write the JSON output file
-6. Report completion with a one-line summary: "Zone {zone.id}: {N} bugs found, {M} fixed"
+2. For each file, apply ALL checks: round focus + language-specific + application-level + skeptical heuristics
+3. For critical flows, read files OUTSIDE your scope (read-only) to verify caller/callee contracts
+4. Record every bug found in the JSON output
+5. {IF fix_mode} Fix bugs using Edit, then commit {ELSE} Do NOT edit any files {END IF}
+6. Write the JSON output file
+7. Report completion with a one-line summary: "Zone {zone.id}: {N} bugs found, {M} fixed"
 ```
 
 ### Dispatch
@@ -817,6 +830,35 @@ Post-merge validation: {N} files checked, {M} errors found
 
 If all checks pass: `Post-merge validation: {N} files checked — all clean ✓`
 
+### Step 2.5: Targeted functional tests (optional)
+
+After syntax validation, run targeted tests to verify the audit fixes didn't break runtime behavior. This is NOT a full test suite run — only tests that cover the modified zones.
+
+**When to run:** In `deep` and `paranoid` modes. Skip in `quick` and `standard` modes.
+
+**Python (pytest):**
+```bash
+# Find test files that correspond to modified source files
+for file in {modified_python_files}; do
+  test_file=$(echo "$file" | sed 's|/|/tests/test_|; s|\.py$|.py|')
+  if [ -f "$test_file" ]; then
+    pytest "$test_file" --tb=short -q 2>&1 | tail -5
+  fi
+done
+```
+
+**TypeScript (if test runner configured):**
+```bash
+# Only if package.json has a "test" script
+if grep -q '"test"' package.json 2>/dev/null; then
+  npx jest --findRelatedTests {modified_ts_files} --passWithNoTests 2>&1 | tail -10
+fi
+```
+
+If tests fail, do NOT revert — log the failure and add a `"test_regression": true` flag to the affected zone's results. The fix itself may be correct while the test needs updating.
+
+Print: `Targeted tests: {N} test files run, {M} failures`
+
 ### Step 4: Write _skipped_zones.json
 
 For any zones that failed (context overflow, API overload after 3 retries, merge conflict, syntax error after merge), persist them for the next audit:
@@ -832,6 +874,147 @@ For any zones that failed (context overflow, API overload after 3 retries, merge
 ```
 
 Write to `{results_dir}/_skipped_zones.json`. At the start of the next audit (Phase 3), if this file exists, prioritize these zones (smaller sizes, first in queue) and delete the file after successful completion.
+
+---
+
+## Phase 5.6 — Cross-Zone Flow Validator
+
+After zone agents and post-merge validation complete, dispatch 1-2 **flow tracer** agents to catch cross-zone integration bugs that isolated zone agents cannot see. Zone agents work in isolation — they excel at finding per-file patterns but are blind to mismatches between a frontend caller and a backend callee that live in different zones.
+
+**When to run:** Always in `deep` and `paranoid` modes. Skip in `quick` mode. In `standard` mode, run only if the detected stack includes both frontend AND backend (e.g., TypeScript + Python).
+
+### Step 1: Identify critical flows
+
+Scan the repo for integration boundaries using Grep:
+
+```bash
+# Backend route definitions
+grep -rn "APIRouter\|@app\.\(get\|post\|put\|delete\|patch\)\|router\.\(get\|post\|put\|delete\|patch\)" --include="*.py" .
+# Frontend API calls
+grep -rn "fetch(\|axios\.\|apiClient\.\|useMutation\|useQuery" --include="*.ts" --include="*.tsx" .
+# Store definitions
+grep -rn "create(\|defineStore\|createContext\|useReducer" --include="*.ts" --include="*.tsx" .
+# Next.js proxy rewrites
+grep -rn "rewrites\|destination:" --include="*.mjs" --include="*.js" next.config.* 2>/dev/null
+```
+
+Group results into **flow pairs**: `(caller_file, callee_file)` where the caller imports or calls the callee across zone boundaries. Only include pairs where the two files belong to DIFFERENT zones from Phase 3.
+
+If fewer than 3 flow pairs are found, skip this phase — the codebase is too small or monolithic for cross-zone bugs.
+
+### Step 2: Build flow tracer prompt
+
+```
+You are a cross-zone integration validator. Your job is to trace flows that span multiple parts of the codebase and find bugs that file-by-file audits cannot see.
+
+You have READ-ONLY access to the entire repository. Do NOT modify any files.
+
+{IF CLAUDE.md content exists}
+## Project Rules (from CLAUDE.md — follow these strictly)
+
+{CLAUDE.md content, truncated to 3000 chars}
+{END IF}
+
+## Critical Flows to Trace
+
+{List of flow pairs from Step 1, formatted as:
+  - caller: src/hooks/use-dossier-api.ts:45 → callee: apps/api-synthesia/routes/dossier/dossier_routes.py:120
+  - caller: src/lib/api-client.ts:78 → callee: apps/api-synthesia/routes/chat_routes.py:55
+}
+
+## What to Look For
+
+1. **Payload mismatches:** Frontend sends field `document_id`, backend expects `doc_id` (different name, type, or structure)
+2. **Dead endpoints:** Backend route exists but no frontend code calls it, or frontend calls an endpoint that doesn't exist
+3. **Auth propagation gaps:** Frontend attaches token via header, backend reads from cookie (or vice versa)
+4. **State machine disconnects:** UI declares workflow phases that backend never transitions to
+5. **Duplicate processing:** Same user action triggers the same backend operation more than once
+6. **Proxy route mismatches:** Next.js rewrite path doesn't match backend route path or port
+7. **Error shape mismatches:** Frontend expects `{ error: string }`, backend returns `{ detail: string }`
+8. **Feature flags declared but unreachable:** Config enables a feature, but the code path is gated by a different condition
+9. **Response shape drift:** Backend returns `{ items: [...] }` but frontend reads `response.data` directly as array
+10. **Missing error boundaries:** Frontend happy path works, but error/loading/empty states are unhandled
+
+## Methodology
+
+For each flow pair:
+1. Read the caller file — what payload does it send? what response does it expect?
+2. Read the callee file — what payload does it accept? what does it return?
+3. Read any middleware/proxy between them (Next.js rewrites, auth decorators, API gateway)
+4. Compare: do they agree on field names, types, required vs optional, error shapes?
+5. If they disagree → record as bug
+
+## Severity Definitions
+
+| Severity | When to use |
+|----------|-------------|
+| `critical` | Payload mismatch that causes crash or data loss on common path |
+| `high` | Auth gap, dead endpoint called on a primary flow, duplicate processing |
+| `medium` | Error shape mismatch, missing empty state, secondary flow disconnect |
+| `low` | Dead endpoint on unused/deprecated flow, minor response shape drift |
+
+## Output Format
+
+Write findings to: {results_dir}/cross-zone-r{round_number}.json
+
+```json
+{
+  "zone": "cross-zone",
+  "round": {round_number},
+  "files_audited": <number of flow pairs traced>,
+  "duration_ms": <approximate time>,
+  "bugs": [
+    {
+      "id": "r{round_number}-xz-001",
+      "severity": "high",
+      "category": "integration",
+      "subcategory": "payload-mismatch",
+      "file": "<caller file>",
+      "line": <caller line>,
+      "title": "Frontend sends doc_id, backend expects document_id",
+      "description": "...",
+      "caller_file": "<file that initiates the call>",
+      "callee_file": "<file that receives the call>",
+      "fix_applied": false,
+      "fix_commit": ""
+    }
+  ]
+}
+```
+
+## Instructions
+
+1. Read each flow pair identified above
+2. For each pair, trace the full path: UI → state → request → proxy → backend → response
+3. Record mismatches as bugs with severity based on impact
+4. Write the JSON output file
+5. Report: "Cross-zone: {N} integration bugs found across {M} flow pairs"
+```
+
+### Step 3: Dispatch
+
+Dispatch 1 flow tracer agent (or 2 if flow pairs > 20, splitting the list in half):
+
+- **Tool:** Agent
+- **prompt:** The filled flow tracer prompt
+- **model:** sonnet
+- **run_in_background:** true
+
+**Note:** Flow tracers do NOT use worktree isolation (they are read-only). They run against the current working tree.
+
+### Step 4: Collect results
+
+When the flow tracer completes:
+1. Read `{results_dir}/cross-zone-r{round_number}.json`
+2. Validate JSON schema (same rules as zone results)
+3. Store bugs for aggregation in Phase 6 — these bugs use the special category `integration` which is valid only for cross-zone results
+4. Print: `Cross-zone validation: {N} integration bugs found across {M} flow pairs`
+
+If the flow tracer fails (context overflow, error), log and continue — cross-zone validation is additive, not blocking.
+
+### Monitor update
+
+If `monitor_active`, POST agent-update for flow tracers with `zone_id: "cross-zone"` and `agent_id: "r{round}:cross-zone"`.
 
 ---
 
@@ -869,7 +1052,8 @@ Before aggregation, apply two corrections to each bug in each zone JSON:
 - `a11y`, `aria`, `contrast` → `accessibility`
 - `race`, `concurrency`, `toctou` → `race-condition`
 - `off-by-one`, `wrong-condition`, `algorithm` → `logic-error`
-- anything else not in the 15 valid categories → `other`
+- `cross-zone`, `payload-mismatch`, `dead-endpoint`, `contract-mismatch` → `integration`
+- anything else not in the 16 valid categories → `other`
 
 **Deduplication:** Group bugs by `(file, title_normalized)` where `title_normalized` is the title lowercased with whitespace collapsed. If multiple bugs have the same file+title:
 - Keep the one with the highest severity
@@ -920,6 +1104,7 @@ Merge all zone results into a single aggregated file:
       "performance": <count>,
       "accessibility": <count>,
       "logic-error": <count>,
+      "integration": <count>,
       "other": <count>
     },
     "files_audited": <sum of files_audited across all zones>,
