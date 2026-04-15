@@ -510,30 +510,11 @@ New tests generated:
 | `get url` | Get current URL | `agent-browser get url` |
 | `close` | Close browser | `agent-browser close` |
 
-### Advanced interactions — see [references/advanced-interactions.md](references/advanced-interactions.md)
+### Advanced interactions
 
-`agent-browser` exposes much more than basic click/fill. Before writing a test with complex interactions, **read the advanced reference**. Key patterns covered:
+**When to read [references/advanced-interactions.md](references/advanced-interactions.md):** whenever a test involves drag-and-drop, hover/tooltips, keyboard shortcuts, forms (checkbox/radio/select), file upload, network mocking, state manipulation (cookies/storage/feature flags), responsive/dark-mode testing, multi-tab/OAuth, visual regression, console error detection, iframe/Shadow DOM, or auth optimization.
 
-- **Drag-and-drop** for `@dnd-kit` / `react-dnd` / `react-beautiful-dnd` (requires `mouse move` + activation distance — `click` does NOT work)
-- **Hover, right-click, context menus** (for tooltips and submenus)
-- **Keyboard shortcuts** (`press Meta+k`, `press Escape`, `press Control+a`)
-- **Form-specific actions** (`check`/`uncheck`/`select` vs `click`)
-- **Hidden file inputs** upload
-- **Network mocking** (`network route --abort`/`--body` — test error states without backend down)
-- **State manipulation** (`cookies`, `storage local`, Zustand reset, feature flag override)
-- **Device/responsive/env** (`set viewport`, `set device`, `set media dark`, `set offline on`, `set geo`)
-- **Visual regression** (`diff screenshot --baseline`)
-- **Multi-tab workflows** (OAuth popups, `tab new|list|close`)
-- **Console error detection** (`console` + `errors` — catches silent React/ErrorBoundary errors)
-- **Video + trace recording** for flaky test debug
-- **Semantic selectors** (`find role|label|testid` — stable vs `@eN` refs)
-- **Iframe + Shadow DOM** traversal
-- **Auth optimization** (`--session-name`, `--profile`, `--auto-connect`, `auth save/login`)
-- **SPA pitfalls** (portals, debounced inputs, animations, client-side routing, Suspense)
-- **Atomic batch** (`batch --bail`)
-- **Annotated screenshots** (`--annotate` for vision LLMs)
-
-**A test that only uses `click/fill/snapshot` without these tools misses ~80% of real UI bugs.** Always consult the advanced reference before adding a new test manifest.
+Tests that only use `click/fill/snapshot` miss ~80% of real UI bugs. The reference documents 20 patterns with framework-specific recipes (e.g., `@dnd-kit` requires `mouse move` + activation distance — `click` does not work).
 
 ## Final Checklist
 

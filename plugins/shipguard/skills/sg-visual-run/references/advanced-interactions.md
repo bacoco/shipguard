@@ -4,6 +4,32 @@ Reference for testing patterns beyond `click`/`fill`/`snapshot`. These are commo
 
 `agent-browser` is a Playwright CLI under the hood — every Playwright capability has a CLI equivalent. The commands below all generate real CDP events (OS-level), so React synthetic events fire correctly.
 
+## Table of contents
+
+| # | Section | When to read |
+|---|---------|--------------|
+| 1 | [Drag-and-drop (@dnd-kit, react-dnd, react-beautiful-dnd)](#1-drag-and-drop-react-dnd-kit-react-dnd-react-beautiful-dnd) | Any draggable UI (kanban, reorderable lists, file dropzones) |
+| 2 | [Hover, tooltips, context menus](#2-hover-tooltips-context-menus) | Tooltips, submenus, right-click menus |
+| 3 | [Keyboard shortcuts & precise input](#3-keyboard-shortcuts--precise-input) | Cmd+K palettes, autocomplete, copy-paste, Escape to close |
+| 4 | [Forms: `check`/`uncheck`/`select` vs `click`](#4-forms-checkuncheckselect-vs-click) | Checkbox, radio, native `<select>`, sliders, color pickers |
+| 5 | [File upload (hidden inputs)](#5-file-upload-including-hidden-inputs) | Upload buttons that delegate to `<input type="file" hidden>` |
+| 6 | [Download verification](#6-download-verification) | Verify an exported file |
+| 7 | [Precise scroll](#7-precise-scroll) | Infinite scroll, virtual lists, `mouse wheel` |
+| 8 | [Network mocking (`route`)](#8-network-mocking-route) | Test 500 errors, slow loading, offline states without backend down |
+| 9 | [State manipulation (cookies, storage)](#9-state-manipulation-cookies-storage) | Feature flags, auth bypass, Zustand persist reset |
+| 10 | [Device / responsive / env](#10-device--responsive--env-testing) | Mobile viewport, dark mode, geolocation, offline, reduced motion |
+| 11 | [Visual regression (`diff`)](#11-visual-regression-diff) | Pixel-perfect regression detection |
+| 12 | [Multi-tab / popups](#12-multi-tab--popups-oauth-social-sharing) | OAuth popups, Stripe Checkout, window.open |
+| 13 | [Console & errors](#13-console--errors-silent-js-error-detection) | Silent React ErrorBoundary / console.error detection |
+| 14 | [Video recording & tracing](#14-video-recording--tracing) | Flaky test debug, performance profiling |
+| 15 | [Semantic selectors (`find`)](#15-semantic-selectors-find) | Stable test selectors (role/label/testid) |
+| 16 | [Iframe & Shadow DOM](#16-iframe--shadow-dom) | Checkout iframes, Web Components |
+| 17 | [Auth optimization](#17-auth-optimization-test-speed) | Skip login re-run (session save, Chrome profile, state file) |
+| 18 | [SPA-specific pitfalls](#18-spa-specific-pitfalls) | Portals, debounced inputs, animations, client-side routing, Suspense |
+| 19 | [Atomic batch](#19-atomic-batch) | Multi-command sequences with rollback |
+| 20 | [Annotated screenshots](#20-annotated-screenshots-vision-llm) | Vision LLM integration |
+| | [Checklist before writing a new test](#checklist-before-writing-a-new-test) | Quick checklist to pick the right tool |
+
 ---
 
 ## 1. Drag-and-drop (React: @dnd-kit, react-dnd, react-beautiful-dnd)
