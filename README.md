@@ -212,6 +212,23 @@ Dispatch parallel AI agents to audit your entire codebase. Each agent reviews a 
 - **R2** — Race conditions, async pitfalls, state management
 - **R3** — Edge cases, injection, auth bypass, data leaks
 
+### Model Configuration
+
+By default, `auto` mode uses haiku for R1 (fast surface scan) and sonnet for R2+ (deeper reasoning). Override with `--model` to control which model runs all rounds:
+
+| Flag | Behavior |
+|------|----------|
+| `--model=auto` | Haiku for R1, sonnet for R2+ (default) |
+| `--model=haiku` | Haiku everywhere — fast, more noise |
+| `--model=sonnet` | Sonnet everywhere — balanced depth and cost |
+| `--model=opus` | Opus everywhere — maximum depth, highest token cost |
+
+```bash
+/sg-code-audit deep --model=opus          # Critical audit with maximum depth
+/sg-code-audit --model=haiku --all        # Quick full-repo sweep, minimal cost
+/sg-code-audit deep --model=opus --focus=src/auth/  # Max rigor on auth code
+```
+
 ### Smart Scope
 
 By default, ShipGuard detects what changed and asks whether to limit the audit:
@@ -228,8 +245,9 @@ Override with flags:
 | `--diff=<ref>` | Use a specific base reference |
 | `--focus=path/` | Restrict to a directory |
 | `--report-only` | Find bugs but do not fix them |
+| `--model=<model>` | Override model strategy (see above) |
 
-Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only`
+Flags combine freely: `/sg-code-audit deep --focus=src/ --report-only --model=opus`
 
 ### Live Dashboard
 

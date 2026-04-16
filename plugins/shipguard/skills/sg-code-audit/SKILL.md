@@ -2,7 +2,7 @@
 name: sg-code-audit
 description: Parallel AI codebase audit — dispatches agents to find and fix bugs across the entire repo. Produces structured JSON results viewable in /sg-visual-review. Trigger on "sg-code-audit", "code audit", "audit codebase", "find bugs", "code-audit", "audit code", "static audit", "security audit", "ship guard".
 context: conversation
-argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only] [--all] [--diff=ref]"
+argument-hint: "[quick|standard|deep|paranoid] [--focus=path] [--report-only] [--all] [--diff=ref] [--model=auto|haiku|sonnet|opus]"
 ---
 
 # /sg-code-audit — Parallel Codebase Audit
@@ -22,7 +22,9 @@ Dispatch parallel AI agents to audit every file in your repo. Each agent reviews
 | `/sg-code-audit deep --focus=src/ --report-only` | Combine flags freely |
 | `/sg-code-audit --diff=main` | Audit only files changed since `main` + their importers |
 | `/sg-code-audit --all` | Force full codebase audit (skip scope question) |
+| `/sg-code-audit --model=opus` | Use opus for all rounds (maximum depth) |
 | `/sg-code-audit quick --diff=feature-branch` | Combine mode with diff scope |
+| `/sg-code-audit deep --model=opus --focus=src/` | Combine model, mode, and focus |
 
 ---
 
@@ -101,10 +103,16 @@ Parse the user's input into four values: **mode**, **focus**, **fix_mode**, and 
 1. Extract the first positional argument (after the command name). Match against `quick`, `standard`, `deep`, `paranoid`. Default: `standard`.
 2. Extract `--focus=<path>` flag. If present, store the path. If not, scope is the entire repo.
 3. Check for `--report-only` flag. If present, set `fix_mode = false`. Default: `fix_mode = true`.
-3b. Check for `--model=<model>` flag. Values: `haiku`, `sonnet`, `auto`. Default: `auto`.
+3b. Check for `--model=<model>` flag. Values: `haiku`, `sonnet`, `opus`, `auto`. Default: `auto`.
    - `auto`: use haiku for R1 (bulk surface scan, cheap), sonnet for R2/R3 (deeper reasoning)
    - `haiku`: all rounds use haiku (fast, catches everything, more noise)
-   - `sonnet`: all rounds use sonnet (current behavior)
+   - `sonnet`: all rounds use sonnet (balanced depth and cost)
+   - `opus`: all rounds use opus (maximum depth, highest token cost — best for critical audits)
+   
+   **User override:** The `--model` flag lets users override the default model strategy for any audit. This is useful when:
+   - A project requires maximum rigor: `--model=opus` uses opus for all rounds
+   - Budget is tight: `--model=haiku` runs the full audit at minimal cost
+   - The default auto strategy (haiku R1, sonnet R2+) can be overridden per-run without changing any config
    
    When using haiku for R1, add this instruction to the agent prompt:
    ```
@@ -615,6 +623,7 @@ For each zone, dispatch an agent:
   - `auto` (default): `haiku` for R1, `sonnet` for R2/R3
   - `haiku`: always `haiku`
   - `sonnet`: always `sonnet`
+  - `opus`: always `opus`
 - **run_in_background:** true
 
 **Staggered dispatch:** Do not launch all agents in the same instant. Dispatch in batches of 3-5 agents per message to reduce API burst load. This prevents 529 overload errors caused by 10+ agents all requesting context simultaneously.
@@ -692,7 +701,7 @@ If `monitor_active` is true, after processing each agent's result:
          "round": {round}, "started_at": "{original}", "ended_at": "{ISO 8601 now}",
          "duration_ms": {from agent result footer or elapsed time},
          "tokens": {"total": {total_tokens}, "input": {input_tokens}, "output": {output_tokens}},
-         "estimated_cost_usd": {calculated from tokens — sonnet: $3/$15 per 1M in/out},
+         "estimated_cost_usd": {calculated from tokens — haiku: $0.25/$1.25, sonnet: $3/$15, opus: $15/$75 per 1M in/out},
          "tool_uses": {from agent result footer}, "bugs_found": {from zone JSON},
          "files_audited": {from zone JSON}}
   ```
