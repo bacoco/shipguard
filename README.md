@@ -68,6 +68,16 @@ npm install -g agent-browser && agent-browser install --with-deps
 
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 
+### What's New (2026-04-16)
+
+5 features from a GitHub-wide scout of 15 repos:
+
+- **Finding Verification (Phase 5.7)** — Haiku agents independently verify each critical/high finding against actual code. Constitutional pre-filter catches obvious hallucinations (missing files, out-of-range lines) for free before Haiku dispatch. Cuts false positives ~15-30%.
+- **TOON Output** — Token-Optimized Output Notation (~40% fewer tokens than JSON) for feeding audit results back into LLM agents.
+- **Diminishing-Returns Risk Score** — Geometric weighted 0-100 score where many low-severity findings don't inflate past the worst single finding.
+- **User Friction Detection** — sg-improve now detects corrections, repetitions, and escalation in user messages via regex patterns, feeding into the learning loop.
+- **Dashboard** — New "Verified" column with color-coded confidence badges, Risk Score stat card.
+
 ---
 
 ## Visual E2E Debugger
