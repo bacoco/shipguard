@@ -68,16 +68,6 @@ npm install -g agent-browser && agent-browser install --with-deps
 
 > ⚠️ **Token Usage** — Code audits are token-intensive. `standard` (10 agents) ≈ 2M tokens. `deep` (15 agents, 2 rounds) ≈ 5M+. `paranoid` (20 agents, 3 rounds) can exceed 10M.
 
-### What's New (2026-04-16)
-
-5 features from a GitHub-wide scout of 15 repos:
-
-- **Finding Verification (Phase 5.7)** — Haiku agents independently verify each critical/high finding against actual code. Constitutional pre-filter catches obvious hallucinations (missing files, out-of-range lines) for free before Haiku dispatch. Cuts false positives ~15-30%.
-- **TOON Output** — Token-Optimized Output Notation (~40% fewer tokens than JSON) for feeding audit results back into LLM agents.
-- **Diminishing-Returns Risk Score** — Geometric weighted 0-100 score where many low-severity findings don't inflate past the worst single finding.
-- **User Friction Detection** — sg-improve now detects corrections, repetitions, and escalation in user messages via regex patterns, feeding into the learning loop.
-- **Dashboard** — New "Verified" column with color-coded confidence badges, Risk Score stat card.
-
 ---
 
 ## Visual E2E Debugger
@@ -265,14 +255,61 @@ At startup, the audit offers to open the Mission Control dashboard. The **Code A
 
 ![Code Audit — Bugs filtered by Critical](docs/screenshots/code-audit-dark.jpg)
 
+### Finding Verification
+
+After zone agents return findings, ShipGuard independently verifies each critical/high bug is real — not a hallucination.
+
+**Two-stage filter:**
+
+1. **Constitutional pre-filter (zero LLM cost)** — checks the cited file exists, line number is in range, bug ID format is valid. Catches obvious hallucinations instantly.
+2. **Haiku verification agents** — one agent per finding, all dispatched in parallel. Each reads the actual file:line and scores 0-100.
+
+| Score | Verdict | Action |
+|-------|---------|--------|
+| 80-100 | Confirmed | Kept as-is |
+| 40-79 | Uncertain | Severity downgraded (critical→high, high→medium) |
+| 0-39 | Rejected | Moved to `unverified_bugs` (kept for audit trail) |
+
+Cuts false positives ~15-30%. Medium/low findings skip verification (too cheap to be worth it).
+
+### Risk Score
+
+A single 0-100 number representing codebase risk. Uses geometric weighting — many low-severity findings can't inflate past the worst single finding:
+
+```
+1st finding:  100% of base points (critical=25, high=15, medium=5, low=1)
+2nd finding:   50%
+3rd finding:   25%
+4th finding:   12.5%  ...and so on
+```
+
+| Score | Risk level |
+|-------|-----------|
+| 0-15 | Low — mostly clean |
+| 16-35 | Moderate — some real issues |
+| 36-60 | High — significant bugs |
+| 61-100 | Critical — severe issues |
+
 ### Output
 
-Results are written to `audit-results.json`:
+Results are written to two formats:
 
-- `summary` — totals by severity and category
-- `bugs[]` — file, line, severity, description, fix status
+**`audit-results.json`** (canonical):
+- `summary` — totals by severity, category, and `risk_score` (0-100)
+- `verification` — how many findings were checked, confirmed, uncertain, rejected
+- `bugs[]` — file, line, severity, description, fix status, `verification_score`, `verified`
+- `unverified_bugs[]` — findings rejected by verification (score < 40)
 - `impacted_ui_routes[]` — UI routes affected (consumed by `/sg-visual-run --from-audit`)
 - `impacted_backend[]` — API endpoints/services affected (reported in dashboard)
+
+**`audit-results.toon`** (compact, ~40% fewer tokens):
+```
+# bugs[107]{id,severity,category,file,line,title,verified,score}:
+r1-z01-001,high,logic-error,src/components/foo.tsx,71,key={index} on list,true,95
+r1-z01-002,medium,error-handling,routes/chat.py,142,bare except,uncertain,55
+```
+
+Header-once + CSV-rows encoding. Used by `sg-improve` for cheaper LLM analysis.
 
 ### Supported languages
 
@@ -308,6 +345,18 @@ After each audit or test session, extract what worked and what didn't.
 | Infra timing | "api-synthesia needs 4 min to start" | Post-audit rebuild |
 | Success patterns | "worktree isolation works — don't change" | What NOT to touch |
 | Coding mistakes | `mistakes.md` — error journal read at every session | All development |
+
+**User friction detection:** sg-improve also scans user messages for correction/frustration signals:
+
+| Signal | Pattern | Priority |
+|--------|---------|----------|
+| Command failure | Tool exit code != 0 | 100 |
+| User correction | "I said", "that's wrong", "pas ca" | 80 |
+| Redo request | "refais", "try again", "relance" | 70 |
+| Repetition | Same instruction 2+ times (Jaccard > 0.5) | 60 |
+| Tone escalation | 3+ uppercase words, 2+ exclamation marks | 40 |
+
+These signals feed into learnings alongside the structured audit data.
 
 **The reinforcement loop:**
 
