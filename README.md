@@ -4,6 +4,29 @@
 
 **Ship with confidence.** ShipGuard finds bugs before your users do — and gets smarter every time.
 
+## How it works
+
+```
+code audit → find bugs → visual test → confirm on screen → human review → annotate → auto-fix → repeat
+```
+
+ShipGuard closes the loop between static analysis and visual reality. Code audit finds bugs in source. Visual tests verify if users see them. You annotate what matters. AI fixes it. The system learns and gets better each run.
+
+## Status
+
+| Module | Status | Notes |
+|--------|--------|-------|
+| Visual E2E Debugger | 🟢 Stable | discover → run → review → fix loop |
+| Code Audit | 🟢 Stable | parallel agents, multi-round, verification |
+| Macro Recorder | 🟢 Stable | record → replay via YAML manifests |
+| Self-Improving Engine | 🟡 Experimental | sg-improve + sg-scout, evolving |
+| Review Dashboard | 🟢 Stable | HTML generation, annotations, monitor |
+| CI/CD Integration | 🔴 Planned | not yet available |
+
+> ⚠️ Requires **Claude Code** + **agent-browser** plugin environment. Some flows are experimental and evolving fast.
+
+---
+
 Four AI-powered modules. Use one, two, or all four. No test files to write.
 
 <table>
