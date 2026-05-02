@@ -129,6 +129,8 @@ const REPORT_PATH = join(RESULTS_DIR, 'report.md');
 const REGRESSIONS_PATH = join(ROOT, '_regressions.yaml');
 const CONFIG_PATH = join(ROOT, '_config.yaml');
 const OUTPUT_PATH = join(RESULTS_DIR, 'review.html');
+const CHANGE_REPORTS_DIR = join(RESULTS_DIR, 'change-reports');
+const PERSONA_REPORTS_DIR = join(RESULTS_DIR, 'persona-reports');
 
 // Dynamically discover test categories by scanning subdirectories (fixes #20)
 const CATEGORIES = readdirSync(ROOT, { withFileTypes: true })
@@ -313,6 +315,317 @@ function getHtmlTemplate() {
   return readFileSync(join(ROOT, '_review-template.html'), 'utf8');
 }
 
+// ── 7. Persona-aware change reports ──
+const DEFAULT_REPORT_AUDIENCES = {
+  client: {
+    id: 'client',
+    label: 'Client validation',
+    badge: 'Decision view',
+    focus: 'Choose what feels right and leave clear validation comments.',
+    sections: ['impact', 'choices', 'risk'],
+  },
+  business: {
+    id: 'business',
+    label: 'Business stakeholder',
+    badge: 'Outcome view',
+    focus: 'Understand the business outcome, tradeoffs, and remaining risk.',
+    sections: ['impact', 'priority', 'risk'],
+  },
+  product: {
+    id: 'product',
+    label: 'Product',
+    badge: 'Roadmap view',
+    focus: 'Evaluate scope, priority, acceptance criteria, and next decisions.',
+    sections: ['problem', 'impact', 'priority', 'tests'],
+  },
+  design: {
+    id: 'design',
+    label: 'Design / UX',
+    badge: 'UX rationale',
+    focus: 'Review before/after evidence, interaction rationale, and visual tradeoffs.',
+    sections: ['problem', 'decision', 'impact', 'risk'],
+  },
+  engineering: {
+    id: 'engineering',
+    label: 'Engineering',
+    badge: 'Implementation view',
+    focus: 'Check files, tests, technical risks, and implementation boundaries.',
+    sections: ['decision', 'tests', 'files', 'risk'],
+  },
+};
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function slugify(value) {
+  return String(value || 'report')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'report';
+}
+
+function readJson(path) {
+  return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+function asArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizeAudience(value) {
+  if (typeof value === 'string') {
+    const known = DEFAULT_REPORT_AUDIENCES[value];
+    return known ? { ...known } : {
+      id: slugify(value),
+      label: value,
+      badge: 'Custom view',
+      focus: 'Review the change report from this audience perspective.',
+      sections: ['problem', 'decision', 'impact', 'risk'],
+    };
+  }
+  if (value && typeof value === 'object') {
+    const id = slugify(value.id || value.label || 'custom');
+    const known = DEFAULT_REPORT_AUDIENCES[id] || {};
+    return {
+      ...known,
+      ...value,
+      id,
+      label: value.label || known.label || id,
+      badge: value.badge || known.badge || 'Custom view',
+      focus: value.focus || known.focus || 'Review the change report from this audience perspective.',
+      sections: asArray(value.sections || known.sections || ['problem', 'decision', 'impact', 'risk']),
+    };
+  }
+  return null;
+}
+
+function normalizeChangeReport(id, raw) {
+  if (!raw || typeof raw !== 'object') throw new Error(`Invalid report.json for ${id}: expected object`);
+  const changes = Array.isArray(raw.changes) ? raw.changes : null;
+  if (!changes) throw new Error(`Invalid report.json for ${id}: changes must be an array`);
+  const configuredAudiences = raw.audiences || raw.personas || ['client', 'product', 'design', 'engineering'];
+  const audiences = asArray(configuredAudiences).map(normalizeAudience).filter(Boolean);
+  if (audiences.length === 0) throw new Error(`Invalid report.json for ${id}: at least one audience is required`);
+  return {
+    id: slugify(raw.id || id),
+    title: raw.title || id,
+    subtitle: raw.subtitle || raw.summary || '',
+    summary: raw.summary || raw.subtitle || '',
+    route: raw.route || raw.url || '',
+    generatedAt: raw.generated_at || raw.generatedAt || new Date().toISOString(),
+    status: raw.status || 'draft',
+    links: Array.isArray(raw.links) ? raw.links : [],
+    audiences,
+    changes: changes.map((change, index) => ({
+      id: slugify(change.id || `change-${index + 1}`),
+      title: change.title || `Change ${index + 1}`,
+      summary: change.summary || '',
+      problem: change.problem || '',
+      decision: change.decision || change.solution || '',
+      impact: change.impact || '',
+      choices: asArray(change.choices),
+      priority: change.priority || change.severity || '',
+      risk: change.risk || change.residual_risk || '',
+      tests: asArray(change.tests),
+      files: asArray(change.files),
+      tags: asArray(change.tags),
+      before: normalizeShot(change.before),
+      after: normalizeShot(change.after),
+    })),
+  };
+}
+
+function normalizeShot(value) {
+  if (!value) return null;
+  if (typeof value === 'string') return { src: value, caption: '' };
+  if (typeof value === 'object' && value.src) {
+    return {
+      src: String(value.src),
+      caption: value.caption || value.label || '',
+      alt: value.alt || value.caption || value.label || '',
+    };
+  }
+  return null;
+}
+
+function collectChangeReports() {
+  if (!existsSync(CHANGE_REPORTS_DIR)) return [];
+  const reports = [];
+  for (const entry of readdirSync(CHANGE_REPORTS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const reportPath = join(CHANGE_REPORTS_DIR, entry.name, 'report.json');
+    if (!existsSync(reportPath)) continue;
+    reports.push(normalizeChangeReport(entry.name, readJson(reportPath)));
+  }
+  return reports;
+}
+
+function reportAssetHref(report, src) {
+  if (!src) return '';
+  if (/^(https?:|data:|blob:)/.test(src)) return src;
+  const cleaned = src.replace(/^\.?\//, '');
+  return `../../change-reports/${encodeURIComponent(report.id)}/${cleaned.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function renderMaybe(label, value) {
+  if (!value || (Array.isArray(value) && value.length === 0)) return '';
+  const body = Array.isArray(value)
+    ? `<ul>${value.map(v => `<li>${escapeHtml(v)}</li>`).join('')}</ul>`
+    : `<p>${escapeHtml(value)}</p>`;
+  return `<div class="fact"><strong>${escapeHtml(label)}</strong>${body}</div>`;
+}
+
+function renderShot(report, label, shot) {
+  if (!shot) {
+    return `<div class="shot empty"><div class="shot-label"><strong>${escapeHtml(label)}</strong><span>No screenshot provided</span></div></div>`;
+  }
+  const href = reportAssetHref(report, shot.src);
+  return `
+    <a class="shot" href="${href}">
+      <div class="shot-label"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(shot.caption || '')}</span></div>
+      <img src="${href}" alt="${escapeHtml(shot.alt || shot.caption || label)}" loading="lazy" />
+    </a>`;
+}
+
+function audienceFacts(change, audience) {
+  const sections = new Set(audience.sections || []);
+  const facts = [];
+  if (sections.has('problem')) facts.push(renderMaybe('Problem', change.problem));
+  if (sections.has('decision')) facts.push(renderMaybe('Decision', change.decision));
+  if (sections.has('impact')) facts.push(renderMaybe('Expected impact', change.impact));
+  if (sections.has('choices')) facts.push(renderMaybe('Choices to validate', change.choices));
+  if (sections.has('priority')) facts.push(renderMaybe('Priority', change.priority));
+  if (sections.has('tests')) facts.push(renderMaybe('Tests / routes', change.tests));
+  if (sections.has('files')) facts.push(renderMaybe('Files', change.files));
+  if (sections.has('risk')) facts.push(renderMaybe('Residual risk', change.risk));
+  return facts.filter(Boolean).join('');
+}
+
+function renderAudienceReport(report, audience) {
+  const title = `${report.title} - ${audience.label}`;
+  const storageKey = `shipguard:persona-report:${report.id}:${audience.id}`;
+  const changeCards = report.changes.map(change => `
+    <article class="change" data-change="${escapeHtml(change.id)}">
+      <div class="change-head">
+        <div>
+          <h2>${escapeHtml(change.title)}</h2>
+          <p>${escapeHtml(change.summary || change.impact || change.problem || '')}</p>
+        </div>
+        ${change.tags.length ? `<div class="tags">${change.tags.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
+      </div>
+      <div class="evidence">
+        ${renderShot(report, 'Before', change.before)}
+        ${renderShot(report, 'After', change.after)}
+      </div>
+      <div class="facts">${audienceFacts(change, audience)}</div>
+      <div class="review">
+        <textarea data-note placeholder="Comment for ${escapeHtml(audience.label)}..."></textarea>
+        <div class="decision-row">
+          <label><input type="radio" name="${escapeHtml(change.id)}" value="accept" /> Accept</label>
+          <label><input type="radio" name="${escapeHtml(change.id)}" value="adjust" /> Adjust</label>
+          <label><input type="radio" name="${escapeHtml(change.id)}" value="reject" /> Reject</label>
+        </div>
+      </div>
+    </article>`).join('');
+
+  const links = report.links.map(link => {
+    if (!link || !link.href) return '';
+    return `<a class="button" href="${escapeHtml(link.href)}">${escapeHtml(link.label || link.href)}</a>`;
+  }).join('');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.5}a{color:inherit}.hero{padding:28px min(5vw,56px);background:linear-gradient(180deg,#121a2b,#0b1020);border-bottom:1px solid #263247}.brand{color:#79b8ff;font-size:13px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.pill{display:inline-flex;border:1px solid #315078;border-radius:999px;color:#cfe2ff;background:#162b45;font-size:12px;font-weight:750;padding:5px 9px;margin-left:8px}h1{font-size:clamp(28px,4vw,46px);line-height:1.08;margin:14px 0 8px}h2,h3,p{margin:0}.subtitle{color:#a6b2c2;font-size:15px;max-width:940px}.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:20px}.metric,.note,.change{background:#151e30;border:1px solid #2b374c;border-radius:8px}.metric{padding:13px 14px}.metric strong{display:block;font-size:24px}.metric span,.note p,.change-head p,.fact p,.fact li,.shot-label span,.footer{color:#a6b2c2}main{padding:24px min(5vw,56px) 56px}.note{padding:16px;margin-bottom:18px}.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.button,button{background:#0f1726;border:1px solid #2b374c;border-radius:6px;color:#edf2f7;cursor:pointer;display:inline-flex;font:inherit;font-size:13px;font-weight:750;padding:8px 10px;text-decoration:none}.changes{display:grid;gap:18px}.change{overflow:hidden}.change-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid #2b374c;padding:16px}.tags{display:flex;gap:6px;flex-wrap:wrap}.tags span{background:#22314a;border:1px solid #344763;border-radius:999px;color:#b9c8dc;font-size:12px;padding:4px 8px}.evidence{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.shot{border-right:1px solid #2b374c;min-width:0}.shot:last-child{border-right:0}.shot-label{display:flex;justify-content:space-between;gap:10px;background:#1d2940;border-bottom:1px solid #2b374c;padding:10px 12px}.shot img{display:block;width:100%;height:auto;background:#0f1726}.shot.empty{min-height:180px;background:#0f1726}.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;border-top:1px solid #2b374c;padding:14px 16px}.fact strong{display:block;font-size:12px;text-transform:uppercase;margin-bottom:4px}.fact ul{margin:0;padding-left:18px}.review{border-top:1px solid #2b374c;padding:14px 16px 16px}textarea{display:block;width:100%;min-height:86px;resize:vertical;background:#0f1726;border:1px solid #2b374c;border-radius:6px;color:#edf2f7;font:inherit;font-size:13px;padding:10px}textarea:focus{outline:none;border-color:#79b8ff}.decision-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;color:#a6b2c2}.decision-row input{accent-color:#79b8ff}.footer{font-size:12px;margin-top:24px}@media(max-width:860px){.evidence{grid-template-columns:1fr}.shot{border-right:0;border-bottom:1px solid #2b374c}.shot:last-child{border-bottom:0}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div><span class="brand">ShipGuard</span><span class="pill">${escapeHtml(audience.badge)}</span></div>
+  <h1>${escapeHtml(title)}</h1>
+  <p class="subtitle">${escapeHtml(audience.focus)}</p>
+  <div class="meta">
+    <div class="metric"><strong>${report.changes.length}</strong><span>changes to review</span></div>
+    <div class="metric"><strong>${escapeHtml(report.status)}</strong><span>report status</span></div>
+    <div class="metric"><strong>${escapeHtml(report.route || 'n/a')}</strong><span>route / flow</span></div>
+    <div class="metric"><strong>${escapeHtml(new Date(report.generatedAt).toISOString().slice(0, 10))}</strong><span>generated</span></div>
+  </div>
+</header>
+<main>
+  <section class="note">
+    <h2>Report context</h2>
+    <p>${escapeHtml(report.summary || report.subtitle || 'No summary provided.')}</p>
+    <div class="toolbar">
+      <a class="button" href="index.html">All audiences</a>
+      <button id="export-comments" type="button">Export comments JSON</button>
+      <button id="clear-comments" type="button">Clear local comments</button>
+      ${links}
+    </div>
+  </section>
+  <section class="changes">${changeCards}</section>
+  <p class="footer">Generated by ShipGuard Persona Reports. Comments are stored locally in this browser and can be exported as JSON.</p>
+</main>
+<script>
+(function(){
+  var storageKey=${JSON.stringify(storageKey)};
+  var changes=Array.prototype.slice.call(document.querySelectorAll('[data-change]'));
+  function readState(){try{return JSON.parse(localStorage.getItem(storageKey)||'{}')}catch(_){return {}}}
+  function writeState(state){localStorage.setItem(storageKey,JSON.stringify(state))}
+  function collect(){var state={};changes.forEach(function(node){var id=node.getAttribute('data-change');var checked=node.querySelector('input[type=radio]:checked');state[id]={note:node.querySelector('[data-note]').value,decision:checked?checked.value:null}});return state}
+  function restore(){var state=readState();changes.forEach(function(node){var id=node.getAttribute('data-change');var data=state[id]||{};node.querySelector('[data-note]').value=data.note||'';if(data.decision){var input=node.querySelector("input[value='"+data.decision+"']");if(input)input.checked=true}})}
+  changes.forEach(function(node){node.addEventListener('input',function(){writeState(collect())});node.addEventListener('change',function(){writeState(collect())})});
+  document.getElementById('export-comments').addEventListener('click',function(){var payload={report:${JSON.stringify(report.id)},audience:${JSON.stringify(audience.id)},exported_at:new Date().toISOString(),comments:collect()};var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var link=document.createElement('a');link.href=url;link.download=${JSON.stringify(`${report.id}-${audience.id}-review.json`)};document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url)});
+  document.getElementById('clear-comments').addEventListener('click',function(){localStorage.removeItem(storageKey);changes.forEach(function(node){node.querySelector('[data-note]').value='';Array.prototype.forEach.call(node.querySelectorAll('input[type=radio]'),function(input){input.checked=false})})});
+  restore();
+}());
+</script>
+</body>
+</html>`;
+}
+
+function renderAudienceIndex(report) {
+  const links = report.audiences.map(audience => `
+    <a class="audience" href="${encodeURIComponent(audience.id)}.html">
+      <strong>${escapeHtml(audience.label)}</strong>
+      <span>${escapeHtml(audience.focus)}</span>
+    </a>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(report.title)} - ShipGuard audiences</title><style>body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px min(5vw,56px)}h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px}.muted{color:#a6b2c2;max-width:860px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:24px}.audience{display:block;background:#151e30;border:1px solid #2b374c;border-radius:8px;color:inherit;padding:16px;text-decoration:none}.audience:hover{border-color:#79b8ff}.audience strong{display:block;margin-bottom:6px}.audience span{color:#a6b2c2;font-size:14px;line-height:1.45}</style></head><body><main><h1>${escapeHtml(report.title)}</h1><p class="muted">${escapeHtml(report.summary || 'Choose the audience-specific view to review this change report.')}</p><div class="grid">${links}</div></main></body></html>`;
+}
+
+function renderReportsIndex(generated) {
+  const links = generated.map(item => `<a class="report" href="${encodeURIComponent(item.id)}/index.html"><strong>${escapeHtml(item.title)}</strong><span>${item.audiences} audience views</span></a>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>ShipGuard Persona Reports</title><style>body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px min(5vw,56px)}h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px}.muted{color:#a6b2c2}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:24px}.report{display:block;background:#151e30;border:1px solid #2b374c;border-radius:8px;color:inherit;padding:16px;text-decoration:none}.report:hover{border-color:#79b8ff}.report strong{display:block;margin-bottom:6px}.report span{color:#a6b2c2;font-size:14px}</style></head><body><main><h1>ShipGuard Persona Reports</h1><p class="muted">Audience-specific reports generated from change-report specs.</p><div class="grid">${links || '<p class="muted">No reports generated.</p>'}</div></main></body></html>`;
+}
+
+function generatePersonaReports() {
+  const reports = collectChangeReports();
+  if (reports.length === 0) return 0;
+  mkdirSync(PERSONA_REPORTS_DIR, { recursive: true });
+  const generated = [];
+  for (const report of reports) {
+    const outDir = join(PERSONA_REPORTS_DIR, report.id);
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'index.html'), renderAudienceIndex(report), 'utf8');
+    for (const audience of report.audiences) {
+      writeFileSync(join(outDir, `${audience.id}.html`), renderAudienceReport(report, audience), 'utf8');
+    }
+    generated.push({ id: report.id, title: report.title, audiences: report.audiences.length });
+  }
+  writeFileSync(join(PERSONA_REPORTS_DIR, 'index.html'), renderReportsIndex(generated), 'utf8');
+  return generated.reduce((sum, item) => sum + item.audiences + 1, 1);
+}
+
 // ── Main ──
 console.log('Building Visual review page...');
 
@@ -424,6 +737,11 @@ if (!process.argv.includes('--stop')) {
     } catch { /* thumbnail generation failed — grid uses full images */ }
   }
   console.log(`  Thumbnails: ${thumbCount}/${tests.filter(t => t.screenshot).length}`);
+}
+
+const personaReportCount = generatePersonaReports();
+if (personaReportCount > 0) {
+  console.log(`  Persona reports: ${personaReportCount} pages`);
 }
 
 // ── Server PID file ──

@@ -40,6 +40,74 @@ This script:
 4. Matches screenshots from `visual-tests/_results/screenshots/`
 5. Generates a self-contained `visual-tests/_results/review.html` (inline CSS + JS, no dependencies)
 6. If `monitor-data.json` exists in `_results/`, a "Monitor" tab appears showing the Gantt timeline of the last audit
+7. If change-report specs exist, generates persona-aware HTML reports under `visual-tests/_results/persona-reports/`
+
+### Persona-Aware Change Reports
+
+Use this when the report must be validated by different recipients: client, product, design, engineering, executive, or any custom audience.
+
+Create a spec at:
+
+```text
+visual-tests/_results/change-reports/<report-id>/report.json
+```
+
+Put screenshots next to it, usually under:
+
+```text
+visual-tests/_results/change-reports/<report-id>/screenshots/
+```
+
+Then run:
+
+```bash
+node visual-tests/build-review.mjs --serve
+```
+
+ShipGuard generates:
+
+```text
+visual-tests/_results/persona-reports/index.html
+visual-tests/_results/persona-reports/<report-id>/index.html
+visual-tests/_results/persona-reports/<report-id>/<audience>.html
+```
+
+Each audience page adapts the same evidence:
+- `client` focuses on plain-language choices and validation.
+- `business` focuses on outcome and residual risk.
+- `product` focuses on priority, acceptance, route/test references.
+- `design` focuses on UX rationale and before/after evidence.
+- `engineering` focuses on files, tests, implementation boundaries.
+
+Each generated page includes local comments, `Accept / Adjust / Reject` decisions, and JSON export. This is the reusable ShipGuard layer; project-specific apps should consume it instead of hand-building one-off reports.
+
+Minimal `report.json` shape:
+
+```json
+{
+  "id": "checkout-redesign",
+  "title": "Checkout redesign",
+  "summary": "Decision report for checkout UX changes.",
+  "route": "/checkout",
+  "audiences": ["client", "product", "design", "engineering"],
+  "changes": [
+    {
+      "id": "payment-summary",
+      "title": "Payment summary is now persistent",
+      "problem": "Users lost context while scrolling.",
+      "decision": "Keep the summary visible during payment.",
+      "impact": "Reduces uncertainty before confirmation.",
+      "choices": ["Keep sticky", "Use collapsible", "Revert"],
+      "tests": ["checkout/payment"],
+      "files": ["src/components/checkout/payment-form.tsx"],
+      "before": { "src": "screenshots/before.png", "caption": "Previous state" },
+      "after": { "src": "screenshots/after.png", "caption": "New state" }
+    }
+  ]
+}
+```
+
+Full example: `skills/sg-visual-review/examples/change-report.json`.
 
 ### Step 2: Open in Browser
 
@@ -132,6 +200,7 @@ The build script and template are installed to the project:
 | `visual-tests/build-review.mjs` | Node.js build script |
 | `visual-tests/_review-template.html` | HTML template with inline CSS + JS |
 | `visual-tests/_results/review.html` | Generated output (not committed) |
+| `visual-tests/_results/persona-reports/` | Generated audience-specific reports |
 
 ## Setup
 

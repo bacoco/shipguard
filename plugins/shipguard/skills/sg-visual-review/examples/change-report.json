@@ -1,0 +1,54 @@
+{
+  "id": "checkout-redesign",
+  "title": "Checkout redesign",
+  "summary": "Decision report for the checkout UX changes. Each audience receives a focused view of the same evidence.",
+  "route": "/checkout",
+  "status": "ready-for-review",
+  "audiences": [
+    "client",
+    "product",
+    "design",
+    "engineering"
+  ],
+  "links": [
+    {
+      "label": "Open Visual Review",
+      "href": "../../review.html"
+    }
+  ],
+  "changes": [
+    {
+      "id": "payment-summary",
+      "title": "Payment summary is now persistent",
+      "summary": "The basket summary remains visible while the user edits payment details.",
+      "problem": "Users lost context when scrolling between payment fields and basket details.",
+      "decision": "Keep the summary visible in the right column on desktop and above the payment form on mobile.",
+      "impact": "Reduces uncertainty before payment confirmation.",
+      "choices": [
+        "Keep the sticky summary",
+        "Use a collapsible summary on mobile",
+        "Return to the previous compact basket"
+      ],
+      "priority": "High",
+      "risk": "Mobile height must be checked on small devices.",
+      "tests": [
+        "checkout/payment"
+      ],
+      "files": [
+        "src/components/checkout/payment-form.tsx"
+      ],
+      "tags": [
+        "conversion",
+        "trust"
+      ],
+      "before": {
+        "src": "screenshots/payment-summary-before.png",
+        "caption": "Previous checkout without persistent summary"
+      },
+      "after": {
+        "src": "screenshots/payment-summary-after.png",
+        "caption": "New checkout with persistent summary"
+      }
+    }
+  ]
+}
