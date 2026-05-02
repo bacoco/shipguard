@@ -44,6 +44,35 @@ Mark bugs directly on screenshots. The AI traces each annotation to source code 
 | `/sg-visual-fix` | Auto-fix bugs annotated in the review dashboard |
 | `/sg-visual-review-stop` | Stop the review server |
 
+### Persona-Aware Reports
+
+ShipGuard can also generate stakeholder-specific HTML reports from the same visual evidence. Put a `report.json` in:
+
+```text
+visual-tests/_results/change-reports/<report-id>/report.json
+```
+
+Then run `/sg-visual-review`. The dashboard builder creates:
+
+```text
+visual-tests/_results/persona-reports/<report-id>/client.html
+visual-tests/_results/persona-reports/<report-id>/product.html
+visual-tests/_results/persona-reports/<report-id>/design.html
+visual-tests/_results/persona-reports/<report-id>/engineering.html
+```
+
+Each page adapts the same change set to the recipient:
+
+| Audience | What it emphasizes |
+|----------|--------------------|
+| Client | Plain-language choices, before/after evidence, `Accept / Adjust / Reject` decisions |
+| Business | Outcome, priority, residual risk |
+| Product | Scope, acceptance criteria, route/test references |
+| Design | UX rationale, interaction tradeoffs, visual comparison |
+| Engineering | Files, tests, implementation boundaries |
+
+Use this when a client or stakeholder needs to validate UI direction without reading the full technical dashboard. The generated pages are static, served by the same review server, and include local comments plus JSON export.
+
 ### Smart Annotations (Gemini-style)
 
 The review dashboard uses **draggable annotation cards** to mark visual bugs on screenshots. Click anywhere on a screenshot to place a pin, then describe the problem.
