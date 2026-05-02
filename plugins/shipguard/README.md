@@ -48,6 +48,10 @@ Mark bugs directly on screenshots. The AI traces each annotation to source code 
 
 ShipGuard can generate client-validation HTML reports from the same visual evidence. The primary use case is simple: give a client or stakeholder a focused page where they can compare before/after screenshots, choose `Accept / Adjust / Reject`, and export comments as JSON.
 
+![Client Validation Report](screenshots/client-validation-report.png)
+
+Open the standalone example: [`examples/client-validation-report.html`](examples/client-validation-report.html)
+
 The same report can be adapted by recipient persona. Put a `report.json` in:
 
 ```text

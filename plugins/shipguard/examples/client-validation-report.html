@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ShipGuard Client Validation Report</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #0b1020;
+      color: #edf2f7;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .hero {
+      background: linear-gradient(180deg, #121a2b, #0b1020);
+      border-bottom: 1px solid #263247;
+      padding: 28px min(5vw, 56px);
+    }
+
+    .brand {
+      color: #79b8ff;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .pill {
+      background: #163a2b;
+      border: 1px solid #2f8a5f;
+      border-radius: 999px;
+      color: #baf3d6;
+      display: inline-flex;
+      font-size: 12px;
+      font-weight: 750;
+      margin-left: 8px;
+      padding: 5px 9px;
+    }
+
+    h1 {
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.08;
+      margin: 14px 0 8px;
+      max-width: 940px;
+    }
+
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    .subtitle {
+      color: #a6b2c2;
+      font-size: 15px;
+      max-width: 940px;
+    }
+
+    .meta {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      margin-top: 20px;
+    }
+
+    .metric,
+    .note,
+    .change {
+      background: #151e30;
+      border: 1px solid #2b374c;
+      border-radius: 8px;
+    }
+
+    .metric {
+      padding: 13px 14px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 24px;
+    }
+
+    .metric span,
+    .note p,
+    .change-head p,
+    .fact p,
+    .fact li,
+    .shot-label span,
+    .footer {
+      color: #a6b2c2;
+    }
+
+    main {
+      padding: 24px min(5vw, 56px) 56px;
+    }
+
+    .note {
+      margin-bottom: 18px;
+      padding: 16px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    button,
+    .button {
+      background: #0f1726;
+      border: 1px solid #2b374c;
+      border-radius: 6px;
+      color: #edf2f7;
+      cursor: pointer;
+      display: inline-flex;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 750;
+      padding: 8px 10px;
+      text-decoration: none;
+    }
+
+    .changes {
+      display: grid;
+      gap: 18px;
+    }
+
+    .change {
+      overflow: hidden;
+    }
+
+    .change-head {
+      border-bottom: 1px solid #2b374c;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 16px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tags span {
+      background: #22314a;
+      border: 1px solid #344763;
+      border-radius: 999px;
+      color: #b9c8dc;
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+
+    .evidence {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shot {
+      border-right: 1px solid #2b374c;
+      min-width: 0;
+    }
+
+    .shot:last-child {
+      border-right: 0;
+    }
+
+    .shot-label {
+      background: #1d2940;
+      border-bottom: 1px solid #2b374c;
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      padding: 10px 12px;
+    }
+
+    .mock-screen {
+      background: #e9edf3;
+      color: #1f2937;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 220px;
+      min-height: 300px;
+      padding: 18px;
+    }
+
+    .mock-screen.before {
+      grid-template-columns: 1fr;
+    }
+
+    .mock-nav,
+    .mock-card,
+    .mock-form,
+    .mock-summary {
+      background: #ffffff;
+      border: 1px solid #d6dde8;
+      border-radius: 8px;
+    }
+
+    .mock-nav {
+      height: 36px;
+      grid-column: 1 / -1;
+    }
+
+    .mock-form {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+
+    .mock-line {
+      background: #dbe3ef;
+      border-radius: 999px;
+      height: 13px;
+      width: 100%;
+    }
+
+    .mock-line.short {
+      width: 62%;
+    }
+
+    .mock-card {
+      min-height: 62px;
+    }
+
+    .mock-summary {
+      align-self: start;
+      border-color: #4b87c8;
+      box-shadow: 0 10px 24px rgba(34, 91, 153, .18);
+      padding: 14px;
+    }
+
+    .mock-summary strong {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .facts {
+      border-top: 1px solid #2b374c;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      padding: 14px 16px;
+    }
+
+    .fact strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .fact ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .review {
+      border-top: 1px solid #2b374c;
+      padding: 14px 16px 16px;
+    }
+
+    textarea {
+      background: #0f1726;
+      border: 1px solid #2b374c;
+      border-radius: 6px;
+      color: #edf2f7;
+      display: block;
+      font: inherit;
+      font-size: 13px;
+      min-height: 86px;
+      padding: 10px;
+      resize: vertical;
+      width: 100%;
+    }
+
+    textarea:focus {
+      border-color: #79b8ff;
+      outline: none;
+    }
+
+    .decision-row {
+      color: #a6b2c2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .decision-row input {
+      accent-color: #79b8ff;
+    }
+
+    .footer {
+      font-size: 12px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 860px) {
+      .evidence,
+      .mock-screen {
+        grid-template-columns: 1fr;
+      }
+
+      .shot {
+        border-bottom: 1px solid #2b374c;
+        border-right: 0;
+      }
+
+      .shot:last-child {
+        border-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <span class="brand">ShipGuard</span>
+      <span class="pill">Client validation</span>
+    </div>
+    <h1>Checkout redesign</h1>
+    <p class="subtitle">A focused decision page for clients and stakeholders: compare before/after evidence, leave comments, and export a validation record.</p>
+    <div class="meta">
+      <div class="metric"><strong>1</strong><span>change to review</span></div>
+      <div class="metric"><strong>4</strong><span>recipient views available</span></div>
+      <div class="metric"><strong>Ready</strong><span>for client decision</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="note">
+      <h2>Review focus</h2>
+      <p>This client view hides implementation noise and keeps the decision surface on business impact, visual evidence, and explicit approval choices.</p>
+      <div class="toolbar">
+        <a class="button" href="#review">Jump to decision</a>
+        <button id="export-comments" type="button">Export comments JSON</button>
+        <button id="clear-comments" type="button">Clear comments</button>
+      </div>
+    </section>
+
+    <section class="changes">
+      <article class="change" data-change="payment-summary">
+        <div class="change-head">
+          <div>
+            <h2>Payment summary is now persistent</h2>
+            <p>The basket summary remains visible while the user edits payment details.</p>
+          </div>
+          <div class="tags">
+            <span>conversion</span>
+            <span>trust</span>
+          </div>
+        </div>
+
+        <div class="evidence">
+          <figure class="shot">
+            <figcaption class="shot-label"><strong>Before</strong><span>Previous checkout</span></figcaption>
+            <div class="mock-screen before" aria-label="Before screenshot placeholder">
+              <div class="mock-nav"></div>
+              <div class="mock-form">
+                <div class="mock-line"></div>
+                <div class="mock-line short"></div>
+                <div class="mock-card"></div>
+                <div class="mock-card"></div>
+                <div class="mock-line"></div>
+                <div class="mock-line short"></div>
+              </div>
+            </div>
+          </figure>
+          <figure class="shot">
+            <figcaption class="shot-label"><strong>After</strong><span>Persistent summary</span></figcaption>
+            <div class="mock-screen" aria-label="After screenshot placeholder">
+              <div class="mock-nav"></div>
+              <div class="mock-form">
+                <div class="mock-line"></div>
+                <div class="mock-line short"></div>
+                <div class="mock-card"></div>
+                <div class="mock-card"></div>
+              </div>
+              <aside class="mock-summary">
+                <strong>Order summary</strong>
+                <div class="mock-line"></div>
+                <div class="mock-line short"></div>
+              </aside>
+            </div>
+          </figure>
+        </div>
+
+        <div class="facts">
+          <div class="fact">
+            <strong>Problem</strong>
+            <p>Users lost context when scrolling between payment fields and basket details.</p>
+          </div>
+          <div class="fact">
+            <strong>Decision</strong>
+            <p>Keep the summary visible on desktop and above the payment form on mobile.</p>
+          </div>
+          <div class="fact">
+            <strong>Expected impact</strong>
+            <p>Reduce uncertainty before payment confirmation.</p>
+          </div>
+          <div class="fact">
+            <strong>Choices to validate</strong>
+            <ul>
+              <li>Keep the sticky summary</li>
+              <li>Use a collapsible summary on mobile</li>
+              <li>Return to the previous compact basket</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="review" id="review">
+          <textarea data-note placeholder="Client comment..."></textarea>
+          <div class="decision-row">
+            <label><input type="radio" name="payment-summary" value="accept" /> Accept</label>
+            <label><input type="radio" name="payment-summary" value="adjust" /> Adjust</label>
+            <label><input type="radio" name="payment-summary" value="reject" /> Reject</label>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <p class="footer">Example static page. Generated ShipGuard reports use the same decision model from `visual-tests/_results/change-reports/&lt;report-id&gt;/report.json`.</p>
+  </main>
+
+  <script>
+    (function () {
+      var storageKey = 'shipguard:example-client-validation-report';
+      var changes = Array.prototype.slice.call(document.querySelectorAll('[data-change]'));
+
+      function readState() {
+        try {
+          return JSON.parse(localStorage.getItem(storageKey) || '{}');
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function collect() {
+        var state = {};
+        changes.forEach(function (node) {
+          var id = node.getAttribute('data-change');
+          var checked = node.querySelector('input[type=radio]:checked');
+          state[id] = {
+            note: node.querySelector('[data-note]').value,
+            decision: checked ? checked.value : null
+          };
+        });
+        return state;
+      }
+
+      function writeState(state) {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+      }
+
+      function restore() {
+        var state = readState();
+        changes.forEach(function (node) {
+          var id = node.getAttribute('data-change');
+          var data = state[id] || {};
+          node.querySelector('[data-note]').value = data.note || '';
+          if (data.decision) {
+            var input = node.querySelector("input[value='" + data.decision + "']");
+            if (input) input.checked = true;
+          }
+        });
+      }
+
+      changes.forEach(function (node) {
+        node.addEventListener('input', function () {
+          writeState(collect());
+        });
+        node.addEventListener('change', function () {
+          writeState(collect());
+        });
+      });
+
+      document.getElementById('export-comments').addEventListener('click', function () {
+        var payload = {
+          report: 'checkout-redesign',
+          audience: 'client',
+          exported_at: new Date().toISOString(),
+          comments: collect()
+        };
+        var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'checkout-redesign-client-review.json';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('clear-comments').addEventListener('click', function () {
+        localStorage.removeItem(storageKey);
+        changes.forEach(function (node) {
+          node.querySelector('[data-note]').value = '';
+          Array.prototype.forEach.call(node.querySelectorAll('input[type=radio]'), function (input) {
+            input.checked = false;
+          });
+        });
+      });
+
+      restore();
+    }());
+  </script>
+</body>
+</html>
