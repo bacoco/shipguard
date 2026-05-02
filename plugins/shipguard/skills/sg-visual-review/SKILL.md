@@ -42,9 +42,9 @@ This script:
 6. If `monitor-data.json` exists in `_results/`, a "Monitor" tab appears showing the Gantt timeline of the last audit
 7. If change-report specs exist, generates persona-aware HTML reports under `visual-tests/_results/persona-reports/`
 
-### Persona-Aware Change Reports
+### Client Validation Reports
 
-Use this when the report must be validated by different recipients: client, product, design, engineering, executive, or any custom audience.
+Use this when the report must be validated by a client or by different recipients: client, product, design, engineering, executive, or any custom audience. The generated pages are decision surfaces: before/after evidence, plain rationale, `Accept / Adjust / Reject`, free-form comments, and JSON export.
 
 Create a spec at:
 
