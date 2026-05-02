@@ -67,6 +67,17 @@ visual-tests/_results/persona-reports/<report-id>/design.html
 visual-tests/_results/persona-reports/<report-id>/engineering.html
 ```
 
+It also writes trace and email artifacts next to the report:
+
+```text
+visual-tests/_results/persona-reports/<report-id>/client-invite-email.md
+visual-tests/_results/persona-reports/<report-id>/client-response-email.md
+visual-tests/_results/persona-reports/<report-id>/proposal-trace.md
+visual-tests/_results/persona-reports/<report-id>/proposal-trace.json
+```
+
+Use `client-invite-email.md` to send the analysis manually. The client can reply using `client-response-email.md` or export JSON from the HTML report. `proposal-trace.*` keeps the local record of what was proposed, which artifacts were generated, and how the client return is expected.
+
 Each page adapts the same change set to the recipient:
 
 | Audience | What it emphasizes |

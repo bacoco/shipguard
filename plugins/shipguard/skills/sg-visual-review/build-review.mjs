@@ -413,6 +413,8 @@ function normalizeChangeReport(id, raw) {
   const configuredAudiences = raw.audiences || raw.personas || ['client', 'product', 'design', 'engineering'];
   const audiences = asArray(configuredAudiences).map(normalizeAudience).filter(Boolean);
   if (audiences.length === 0) throw new Error(`Invalid report.json for ${id}: at least one audience is required`);
+  const client = raw.client && typeof raw.client === 'object' ? raw.client : {};
+  const validation = raw.validation && typeof raw.validation === 'object' ? raw.validation : {};
   return {
     id: slugify(raw.id || id),
     title: raw.title || id,
@@ -422,6 +424,18 @@ function normalizeChangeReport(id, raw) {
     generatedAt: raw.generated_at || raw.generatedAt || new Date().toISOString(),
     status: raw.status || 'draft',
     links: Array.isArray(raw.links) ? raw.links : [],
+    client: {
+      name: client.name || validation.client_name || validation.clientName || raw.client_name || raw.clientName || 'Client',
+      contact: client.contact || client.email || validation.client_contact || validation.clientContact || '',
+    },
+    validation: {
+      reference: validation.reference || raw.reference || raw.id || id,
+      reviewUrl: validation.review_url || validation.reviewUrl || raw.review_url || raw.reviewUrl || '',
+      replyTo: validation.reply_to || validation.replyTo || raw.reply_to || raw.replyTo || '',
+      deadline: validation.deadline || raw.deadline || '',
+      senderName: validation.sender_name || validation.senderName || raw.sender_name || raw.senderName || '',
+      senderCompany: validation.sender_company || validation.senderCompany || raw.sender_company || raw.senderCompany || '',
+    },
     audiences,
     changes: changes.map((change, index) => ({
       id: slugify(change.id || `change-${index + 1}`),
@@ -568,6 +582,9 @@ function renderAudienceReport(report, audience) {
     <p>${escapeHtml(report.summary || report.subtitle || 'No summary provided.')}</p>
     <div class="toolbar">
       <a class="button" href="index.html">All audiences</a>
+      <a class="button" href="client-invite-email.md">Email to send</a>
+      <a class="button" href="client-response-email.md">Client reply email</a>
+      <a class="button" href="proposal-trace.md">Proposal trace</a>
       <button id="export-comments" type="button">Export comments JSON</button>
       <button id="clear-comments" type="button">Clear local comments</button>
       ${links}
@@ -600,12 +617,201 @@ function renderAudienceIndex(report) {
       <strong>${escapeHtml(audience.label)}</strong>
       <span>${escapeHtml(audience.focus)}</span>
     </a>`).join('');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(report.title)} - ShipGuard audiences</title><style>body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px min(5vw,56px)}h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px}.muted{color:#a6b2c2;max-width:860px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:24px}.audience{display:block;background:#151e30;border:1px solid #2b374c;border-radius:8px;color:inherit;padding:16px;text-decoration:none}.audience:hover{border-color:#79b8ff}.audience strong{display:block;margin-bottom:6px}.audience span{color:#a6b2c2;font-size:14px;line-height:1.45}</style></head><body><main><h1>${escapeHtml(report.title)}</h1><p class="muted">${escapeHtml(report.summary || 'Choose the audience-specific view to review this change report.')}</p><div class="grid">${links}</div></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(report.title)} - ShipGuard audiences</title><style>body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px min(5vw,56px)}h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px}.muted{color:#a6b2c2;max-width:860px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:24px}.audience,.artifact{display:block;background:#151e30;border:1px solid #2b374c;border-radius:8px;color:inherit;padding:16px;text-decoration:none}.audience:hover,.artifact:hover{border-color:#79b8ff}.audience strong,.artifact strong{display:block;margin-bottom:6px}.audience span,.artifact span{color:#a6b2c2;font-size:14px;line-height:1.45}.section{margin-top:30px}</style></head><body><main><h1>${escapeHtml(report.title)}</h1><p class="muted">${escapeHtml(report.summary || 'Choose the audience-specific view to review this change report.')}</p><div class="grid">${links}</div><div class="section"><h2>Validation artifacts</h2><p class="muted">Use these files to keep a trace of what was proposed and to exchange validation by email.</p><div class="grid"><a class="artifact" href="client-invite-email.md"><strong>Email to send</strong><span>Prepared message for sending the analysis to the client.</span></a><a class="artifact" href="client-response-email.md"><strong>Client reply email</strong><span>Prepared response template the client can send back.</span></a><a class="artifact" href="proposal-trace.md"><strong>Proposal trace</strong><span>Human-readable trace of the proposed changes and generated artifacts.</span></a><a class="artifact" href="proposal-trace.json"><strong>Proposal trace JSON</strong><span>Machine-readable trace for archiving or later automation.</span></a></div></div></main></body></html>`;
 }
 
 function renderReportsIndex(generated) {
   const links = generated.map(item => `<a class="report" href="${encodeURIComponent(item.id)}/index.html"><strong>${escapeHtml(item.title)}</strong><span>${item.audiences} audience views</span></a>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>ShipGuard Persona Reports</title><style>body{margin:0;background:#0b1020;color:#edf2f7;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{padding:32px min(5vw,56px)}h1{font-size:clamp(28px,4vw,44px);margin:0 0 10px}.muted{color:#a6b2c2}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:24px}.report{display:block;background:#151e30;border:1px solid #2b374c;border-radius:8px;color:inherit;padding:16px;text-decoration:none}.report:hover{border-color:#79b8ff}.report strong{display:block;margin-bottom:6px}.report span{color:#a6b2c2;font-size:14px}</style></head><body><main><h1>ShipGuard Persona Reports</h1><p class="muted">Audience-specific reports generated from change-report specs.</p><div class="grid">${links || '<p class="muted">No reports generated.</p>'}</div></main></body></html>`;
+}
+
+function md(value) {
+  return String(value ?? '').replace(/\r/g, '').trim();
+}
+
+function mdList(values) {
+  const items = asArray(values).map(value => md(value)).filter(Boolean);
+  return items.length ? items.map(value => `- ${value}`).join('\n') : '- n/a';
+}
+
+function clientAudienceId(report) {
+  return report.audiences.some(audience => audience.id === 'client') ? 'client' : report.audiences[0].id;
+}
+
+function clientReviewTarget(report) {
+  return report.validation.reviewUrl || `${clientAudienceId(report)}.html`;
+}
+
+function renderChangeDecisionTemplate(report) {
+  return report.changes.map(change => [
+    `- ${md(change.title)} (${change.id})`,
+    '  Decision: [Accept / Adjust / Reject]',
+    '  Comment:'
+  ].join('\n')).join('\n');
+}
+
+function renderClientInviteEmail(report) {
+  const deadline = report.validation.deadline ? `\nRequested response date: ${md(report.validation.deadline)}\n` : '';
+  const replyTo = report.validation.replyTo ? `\nPlease reply to: ${md(report.validation.replyTo)}\n` : '';
+  const signature = [report.validation.senderName, report.validation.senderCompany].map(md).filter(Boolean).join('\n');
+  return `Subject: Validation request - ${md(report.title)}
+
+Hello ${md(report.client.name)},
+
+We prepared the following ShipGuard validation report for your review:
+
+${md(report.title)}
+
+${md(report.summary || 'Please review the proposed changes and send back your validation decision.')}
+
+Review page:
+${clientReviewTarget(report)}
+${deadline}${replyTo}
+Please review the before/after evidence and send back a decision for each proposed change:
+
+${renderChangeDecisionTemplate(report)}
+
+Decision values:
+- Accept: the proposal is approved as presented.
+- Adjust: the direction is approved, but changes are requested.
+- Reject: the proposal should not move forward.
+
+Reference: ${md(report.validation.reference)}
+
+${signature}
+`;
+}
+
+function renderClientResponseEmail(report) {
+  const replyTo = report.validation.replyTo ? `To: ${md(report.validation.replyTo)}\n` : '';
+  return `${replyTo}Subject: Validation response - ${md(report.title)}
+
+Hello,
+
+After reviewing the ShipGuard validation report, here is our response.
+
+Report: ${md(report.title)}
+Reference: ${md(report.validation.reference)}
+Review page: ${clientReviewTarget(report)}
+
+Overall decision: [Accept / Adjust / Reject]
+
+Change decisions:
+${renderChangeDecisionTemplate(report)}
+
+Additional comments:
+
+Client name:
+Decision date:
+`;
+}
+
+function proposalArtifacts(report) {
+  const audienceArtifacts = report.audiences.map(audience => ({
+    type: 'audience_html',
+    audience: audience.id,
+    path: `${audience.id}.html`,
+  }));
+  return [
+    { type: 'audience_index', path: 'index.html' },
+    ...audienceArtifacts,
+    { type: 'email_to_send', path: 'client-invite-email.md' },
+    { type: 'client_reply_email', path: 'client-response-email.md' },
+    { type: 'proposal_trace_markdown', path: 'proposal-trace.md' },
+    { type: 'proposal_trace_json', path: 'proposal-trace.json' },
+  ];
+}
+
+function renderProposalTraceMarkdown(report) {
+  const changes = report.changes.map(change => `## ${md(change.title)}
+
+- Change ID: ${change.id}
+- Summary: ${md(change.summary || 'n/a')}
+- Problem: ${md(change.problem || 'n/a')}
+- Proposed decision: ${md(change.decision || 'n/a')}
+- Expected impact: ${md(change.impact || 'n/a')}
+- Choices:
+${mdList(change.choices)}
+- Residual risk: ${md(change.risk || 'n/a')}
+- Tests / routes:
+${mdList(change.tests)}
+- Files:
+${mdList(change.files)}
+`).join('\n');
+
+  const artifacts = proposalArtifacts(report).map(artifact => {
+    const audience = artifact.audience ? ` (${artifact.audience})` : '';
+    return `- ${artifact.type}${audience}: ${artifact.path}`;
+  }).join('\n');
+
+  return `# Proposal Trace - ${md(report.title)}
+
+Status: prepared
+Generated at: ${md(report.generatedAt)}
+Reference: ${md(report.validation.reference)}
+Client: ${md(report.client.name)}
+Client contact: ${md(report.client.contact || 'n/a')}
+Route / flow: ${md(report.route || 'n/a')}
+Review target: ${clientReviewTarget(report)}
+
+This file records what ShipGuard prepared for client validation. It is the local trace of the proposal before any manual email is sent.
+
+# Proposed Changes
+
+${changes}
+
+# Generated Artifacts
+
+${artifacts}
+
+# Client Return
+
+The client can return validation manually by sending back \`client-response-email.md\`, or by exporting JSON from the HTML report.
+`;
+}
+
+function proposalTraceJson(report) {
+  return {
+    schema_version: 'shipguard.client-validation-trace.v1',
+    status: 'prepared',
+    generated_at: report.generatedAt,
+    reference: report.validation.reference,
+    report: {
+      id: report.id,
+      title: report.title,
+      summary: report.summary,
+      route: report.route,
+      review_target: clientReviewTarget(report),
+    },
+    client: report.client,
+    validation: report.validation,
+    changes: report.changes.map(change => ({
+      id: change.id,
+      title: change.title,
+      summary: change.summary,
+      problem: change.problem,
+      proposed_decision: change.decision,
+      expected_impact: change.impact,
+      choices: change.choices,
+      residual_risk: change.risk,
+      tests: change.tests,
+      files: change.files,
+      tags: change.tags,
+    })),
+    artifacts: proposalArtifacts(report),
+    return_channel: {
+      mode: 'manual_email_or_json_export',
+      client_reply_template: 'client-response-email.md',
+      browser_json_export: `${report.id}-${clientAudienceId(report)}-review.json`,
+    },
+  };
+}
+
+function writeValidationArtifacts(outDir, report) {
+  writeFileSync(join(outDir, 'client-invite-email.md'), renderClientInviteEmail(report), 'utf8');
+  writeFileSync(join(outDir, 'client-response-email.md'), renderClientResponseEmail(report), 'utf8');
+  writeFileSync(join(outDir, 'proposal-trace.md'), renderProposalTraceMarkdown(report), 'utf8');
+  writeFileSync(join(outDir, 'proposal-trace.json'), JSON.stringify(proposalTraceJson(report), null, 2), 'utf8');
 }
 
 function generatePersonaReports() {
@@ -620,6 +826,7 @@ function generatePersonaReports() {
     for (const audience of report.audiences) {
       writeFileSync(join(outDir, `${audience.id}.html`), renderAudienceReport(report, audience), 'utf8');
     }
+    writeValidationArtifacts(outDir, report);
     generated.push({ id: report.id, title: report.title, audiences: report.audiences.length });
   }
   writeFileSync(join(PERSONA_REPORTS_DIR, 'index.html'), renderReportsIndex(generated), 'utf8');

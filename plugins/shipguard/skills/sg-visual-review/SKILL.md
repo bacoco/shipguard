@@ -70,6 +70,10 @@ ShipGuard generates:
 visual-tests/_results/persona-reports/index.html
 visual-tests/_results/persona-reports/<report-id>/index.html
 visual-tests/_results/persona-reports/<report-id>/<audience>.html
+visual-tests/_results/persona-reports/<report-id>/client-invite-email.md
+visual-tests/_results/persona-reports/<report-id>/client-response-email.md
+visual-tests/_results/persona-reports/<report-id>/proposal-trace.md
+visual-tests/_results/persona-reports/<report-id>/proposal-trace.json
 ```
 
 Each audience page adapts the same evidence:
@@ -79,7 +83,7 @@ Each audience page adapts the same evidence:
 - `design` focuses on UX rationale and before/after evidence.
 - `engineering` focuses on files, tests, implementation boundaries.
 
-Each generated page includes local comments, `Accept / Adjust / Reject` decisions, and JSON export. This is the reusable ShipGuard layer; project-specific apps should consume it instead of hand-building one-off reports.
+Each generated page includes local comments, `Accept / Adjust / Reject` decisions, and JSON export. The email and trace artifacts support manual validation without an email provider: send `client-invite-email.md`, let the client reply from `client-response-email.md`, and archive `proposal-trace.*` with the returned decision. This is the reusable ShipGuard layer; project-specific apps should consume it instead of hand-building one-off reports.
 
 Minimal `report.json` shape:
 
@@ -89,6 +93,16 @@ Minimal `report.json` shape:
   "title": "Checkout redesign",
   "summary": "Decision report for checkout UX changes.",
   "route": "/checkout",
+  "client": {
+    "name": "Client team",
+    "contact": "client@example.com"
+  },
+  "validation": {
+    "reference": "UX-2026-05-checkout-redesign",
+    "review_url": "https://review.example.com/persona-reports/checkout-redesign/client.html",
+    "reply_to": "delivery@example.com",
+    "deadline": "2026-05-09"
+  },
   "audiences": ["client", "product", "design", "engineering"],
   "changes": [
     {
