@@ -125,6 +125,8 @@ Open the standalone example: [`plugins/shipguard/examples/client-validation-repo
 
 Client, product, design, engineering, and custom recipient views can be generated from the same `visual-tests/_results/change-reports/<report-id>/report.json` spec. Each page includes `Accept / Adjust / Reject`, free-form comments, and JSON export.
 
+For manual client validation, ShipGuard also generates `client-invite-email.md`, `client-response-email.md`, `proposal-trace.md`, and `proposal-trace.json` next to the report. This keeps a trace of what was proposed and gives the client a ready-to-send response template without requiring email-provider integration.
+
 ### Smart Annotations (Gemini-style)
 
 The review dashboard uses **draggable annotation cards** to mark visual bugs on screenshots. Click anywhere on a screenshot to place a pin, then describe the problem.

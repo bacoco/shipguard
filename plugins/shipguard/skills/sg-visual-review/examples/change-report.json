@@ -4,6 +4,18 @@
   "summary": "Decision report for the checkout UX changes. Each audience receives a focused view of the same evidence.",
   "route": "/checkout",
   "status": "ready-for-review",
+  "client": {
+    "name": "Client team",
+    "contact": "client@example.com"
+  },
+  "validation": {
+    "reference": "UX-2026-05-checkout-redesign",
+    "review_url": "https://review.example.com/persona-reports/checkout-redesign/client.html",
+    "reply_to": "delivery@example.com",
+    "deadline": "2026-05-09",
+    "sender_name": "ShipGuard delivery",
+    "sender_company": "Example Studio"
+  },
   "audiences": [
     "client",
     "product",
