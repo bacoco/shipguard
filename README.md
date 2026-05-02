@@ -115,6 +115,16 @@ Mark bugs directly on screenshots. The AI traces each annotation to source code 
 | `/sg-visual-fix` | Auto-fix bugs annotated in the review dashboard |
 | `/sg-visual-review-stop` | Stop the review server |
 
+### Client Validation Reports
+
+Generate static HTML decision pages from before/after visual evidence so a client or stakeholder can validate UI changes without reading the technical dashboard.
+
+![Client Validation Report](docs/screenshots/client-validation-report.png)
+
+Open the standalone example: [`plugins/shipguard/examples/client-validation-report.html`](plugins/shipguard/examples/client-validation-report.html)
+
+Client, product, design, engineering, and custom recipient views can be generated from the same `visual-tests/_results/change-reports/<report-id>/report.json` spec. Each page includes `Accept / Adjust / Reject`, free-form comments, and JSON export.
+
 ### Smart Annotations (Gemini-style)
 
 The review dashboard uses **draggable annotation cards** to mark visual bugs on screenshots. Click anywhere on a screenshot to place a pin, then describe the problem.
