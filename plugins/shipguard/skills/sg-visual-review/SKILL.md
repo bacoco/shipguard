@@ -42,6 +42,23 @@ This script:
 6. If `monitor-data.json` exists in `_results/`, a "Monitor" tab appears showing the Gantt timeline of the last audit
 7. If change-report specs exist, generates persona-aware HTML reports under `visual-tests/_results/persona-reports/`
 
+### Durable Post-Development Change Reports
+
+When UI work was performed or screenshots should be saved with a PR, invoke `sg-change-report`. It creates the durable source report under:
+
+```text
+visual-tests/_results/change-reports/<report-id>/report.json
+visual-tests/_results/change-reports/<report-id>/screenshots/
+```
+
+Then this review builder generates audience-specific HTML under:
+
+```text
+visual-tests/_results/persona-reports/<report-id>/
+```
+
+Commit the change-report source and the generated persona report with the UI change. Do not commit `visual-tests/_results/review.html` or `visual-tests/_results/.server.pid`; those are local generated files.
+
 ### Client Validation Reports
 
 Use this when the report must be validated by a client or by different recipients: client, product, design, engineering, executive, or any custom audience. The generated pages are decision surfaces: before/after evidence, plain rationale, `Accept / Adjust / Reject`, free-form comments, and JSON export.
@@ -213,7 +230,9 @@ The build script and template are installed to the project:
 |------|---------|
 | `visual-tests/build-review.mjs` | Node.js build script |
 | `visual-tests/_review-template.html` | HTML template with inline CSS + JS |
-| `visual-tests/_results/review.html` | Generated output (not committed) |
+| `visual-tests/_results/review.html` | Generated local review workspace (not committed) |
+| `visual-tests/_results/change-reports/<report-id>/report.json` | Durable source report (committed with UI changes) |
+| `visual-tests/_results/persona-reports/<report-id>/index.html` | Durable generated review report (committed when used for PR/client review) |
 | `visual-tests/_results/persona-reports/` | Generated audience-specific reports |
 
 ## Setup

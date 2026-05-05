@@ -175,3 +175,5 @@ Before considering the run complete:
 - [ ] Report written to `{report_path}`
 - [ ] Browser closed
 - [ ] Summary displayed (pass/fail/stale)
+- [ ] If this run supports UI-visible code changes, invoke `sg-change-report` and commit the resulting `change-reports/<report-id>` and generated `persona-reports/<report-id>` artifacts with the PR
+- [ ] Do not commit `visual-tests/_results/review.html` or `visual-tests/_results/.server.pid`

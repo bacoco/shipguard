@@ -42,7 +42,24 @@ Mark bugs directly on screenshots. The AI traces each annotation to source code 
 | `/sg-visual-run [what]` | Execute manifests — natural language or flags |
 | `/sg-visual-review` | Launch interactive screenshot review dashboard |
 | `/sg-visual-fix` | Auto-fix bugs annotated in the review dashboard |
+| `/sg-change-report` | Save before/after UI evidence as committed PR/client review reports |
 | `/sg-visual-review-stop` | Stop the review server |
+
+### Durable Change Reports
+
+After UI-visible work, use `/sg-change-report` to save the before/after evidence with the change. ShipGuard stores the source report and screenshots in:
+
+```text
+visual-tests/_results/change-reports/<report-id>/
+```
+
+Then `/sg-visual-review` or `node visual-tests/build-review.mjs --serve` generates reviewable HTML in:
+
+```text
+visual-tests/_results/persona-reports/<report-id>/
+```
+
+Commit those durable report folders with the PR. Do not commit the local interactive workspace `visual-tests/_results/review.html` or `.server.pid`.
 
 ### Client Validation Reports
 

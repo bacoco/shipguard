@@ -162,7 +162,19 @@ node visual-tests/build-review.mjs --serve
 
 The review page shows before/after screenshots when pairs exist (matching `{slug}-before.png` and `{slug}-after.png` in the screenshots directory).
 
-### Step 3b: Stop Review Server
+### Step 3b: Publish Durable Change Report
+
+Use `sg-change-report` to create a committed before/after report:
+
+```text
+visual-tests/_results/change-reports/<report-id>/report.json
+visual-tests/_results/change-reports/<report-id>/screenshots/
+visual-tests/_results/persona-reports/<report-id>/index.html
+```
+
+Copy the relevant before/after screenshots into the change-report folder, run `node visual-tests/build-review.mjs --serve --port=<free-port>`, and commit the source report plus generated persona report with the UI fix. Do not commit `visual-tests/_results/review.html` or `visual-tests/_results/.server.pid`.
+
+### Step 3c: Stop Review Server
 
 After all fixes are applied and verified, stop the review server:
 
@@ -183,6 +195,7 @@ Visual Review Fix Complete:
 - {N} annotated issues processed
 - {M} fixed, {K} need further investigation
 - Before/after comparison: visual-tests/_results/review.html (Comparison tab)
+- Durable change report: visual-tests/_results/persona-reports/{report-id}/index.html
 - Rebuilt: (build_command from _config.yaml)
 ```
 
